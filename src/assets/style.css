@@ -1,0 +1,91 @@
+body {
+    background-color: #010716;
+}
+
+.c {
+    background-color: #000000;  
+    transition: 0.2s;
+    text-align: center;
+    border: 2px solid rgba(92, 91, 94, 0.219);
+
+    width: 250px;
+    height: 250px;
+    display: flex;
+    flex-direction: column;
+
+}
+
+.c-title {
+    color: #ffffff;
+}
+
+.c-text {
+    color: #ffffff;
+}
+
+.c:hover {
+    transform: translateY(-4px);
+}
+
+.card-btn {
+    color: white;
+    padding: 5px;
+    align-items: flex-end;
+}
+
+.custom-form-select {
+    color:#9ca3af;
+    background-color:#000000;
+}
+
+.custom-date-select {
+    color:#9ca3af;
+    background-color:#000000;
+}
+
+.top-filter-bar {
+  width: 100%;
+  background-color: #0b1320;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.metrics-table {
+  background: #111827;
+  color: #e5e7ea;
+  overflow: hidden;
+
+  th,
+  td {
+    border-color: #2a2f3a;
+    padding: 0.9rem;
+  }
+
+  thead {
+    background: #0b1220;
+
+    th {
+      color: #9ca3af;
+      font-weight: 600;
+      border-bottom: 1px solid #2a2f3a;
+    }
+  }
+
+  tbody tr {
+    background: #111827;
+    transition: 0.2s ease;
+  }
+
+  tbody td {
+    color: #9ca3af;
+  }
+
+  tbody td:hover {
+    background: rgba(184, 190, 181, 0.121);
+  }
+
+  tbody th {
+    color: #6366f1;
+  }
+}
+
+

@@ -1,0 +1,31 @@
+$body-bg: #0b1220;
+$body-color: #e5e7eb;
+
+$primary: #6366f1;
+
+$input-bg: #111827;
+$input-color: #e5e7eb;
+$input-border-color: #2a2f3a;
+
+$input-padding-y: 0.45rem;
+$input-padding-x: 0.9rem;
+
+$input-border-radius: 10px;
+
+$input-focus-border-color: #6366f1;
+$input-focus-box-shadow: 0 0 0 .15rem rgba(99,102,241,.35);
+
+$form-label-font-weight: 500;
+$form-label-color: #9ca3af;
+
+
+$form-select-bg: #111827;
+$form-select-border-color: #2a2f3a;
+
+// $border-radius: 14px;
+$card-border-width: 1px;
+$card-border-color: rgba(255, 255, 255, 0.367);
+$card-box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+
+
+@import "bootstrap/scss/bootstrap";
