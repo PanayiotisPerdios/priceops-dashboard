@@ -1,15 +1,20 @@
 <script setup>
 import { ref } from 'vue'
+import '@/assets/main.scss'
 
 const count = ref(0)
 </script>
 
 <template>
-<nav class="navbar navbar-expand-lg bg-body-tertiary" data-bs-theme="dark">
-  <div class="container-fluid">
-        <router-link class="navbar-brand" :to="'/'">PriceOps</router-link>
-
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+<div class="d-flex">  
+  <nav class="navbar-custom bg-dark text-white vh-100 position-fixed d-flex flex-column align-items-center" style="width: 90px;">
+    <div class="container-fluid">
+      <router-link class="navbar-brand text-white" :to="'/'">
+          <br>
+          <img src="@/assets/price_ops_logo.svg" alt="Logo" class="logo"></img>
+      </router-link>
+    
+    <!-- <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
       <span class="navbar-toggler-icon"></span>
     </button>
     <div class="collapse navbar-collapse" id="navbarSupportedContent">
@@ -40,6 +45,8 @@ const count = ref(0)
         <button class="btn btn-outline-success" type="submit">Search</button>
       </form>
     </div>
-  </div>
-</nav>
+     -->
+    </div>
+  </nav>
+</div>
 </template>

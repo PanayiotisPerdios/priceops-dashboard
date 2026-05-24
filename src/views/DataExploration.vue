@@ -6,12 +6,54 @@ import '@/assets/main.scss'
 
 import {
   Chart as ChartJS,
+  Title,
+  Tooltip,
+  Legend,
   LineElement,
-  CategoryScale,
-  LinearScale,
+  BarElement,
   PointElement,
+  ArcElement,
+  CategoryScale,
+  LinearScale
 } from 'chart.js'
-import { Line } from 'vue-chartjs'
+
+import {
+  Line,
+  Bar,
+  Pie
+} from 'vue-chartjs'
+
+ChartJS.register(
+  Title,
+  Tooltip,
+  Legend,
+  LineElement,
+  BarElement,
+  PointElement,
+  ArcElement,
+  CategoryScale,
+  LinearScale
+)
+
+import {
+  providers,
+  services,
+  regions,
+  metrics
+} from '@/data/filters'
+
+import { tableColumnMap } from '@/data/tableColumns';
+
+import {
+  metricDataMap,
+  granularityLabels,
+} from '@/data/chartData'
+
+import {
+  providerMockData
+} from '@/mock-data/providerMockData'
+
+const visualizationType = ref('Line')
 
 const provider = ref(null);
 const service = ref(null);
@@ -20,36 +62,24 @@ const dateRange = ref(null);
 const metric = ref(null);
 const granularity = ref('daily');
 
-const providers = [
-  "AWS",
-  "Google Cloud",
-  "Azure"
-]
+const activeComparisonColumns = computed(() => {
+  return (tableColumnMap?.[service.value]?.[metric.value]?.fields || [])
 
-const services = [
-  "Compute",
-  "Storage",
-  "Database",
-  "Networking",
-  "Kubernetes",
-  "Serverless"
-]
+});
 
-const regions = [
-  "us-east-1",
-  "us-west-2",
-  "eu-west-1",
-  "eu-central-1",
-  "asia-east1"
-]
+const chartComponent = computed(() => {
+  switch(visualizationType.value){
+    case 'Bar':
+      return Bar
 
-const metrics = [
-  "Cost",
-  "Usage",
-  "Amortized Cost",
-  "Blended Cost",
-  "Forecasted Cost"
-]
+    case 'Pie':
+      return Pie
+
+    case 'Line':
+    default:
+      return Line
+  }
+})
 
 const timeNormalization = computed( () =>  {
   if (!dateRange.value) {
@@ -63,97 +93,67 @@ const timeNormalization = computed( () =>  {
   }
 }) 
 
-ChartJS.register(
-  LineElement,
-  CategoryScale,
-  LinearScale,
-  PointElement
-)
-
 const chartData = computed(() => {
-  let labels = [];
-
-  if (granularity.value === 'daily'){
-    labels = ['Mon', 'Tue', 'Wed', 'Thu'];
-  } else if (granularity.value === 'weekly'){
-    labels = ['Week 1', 'Week 2', 'Week 3'];
-  } else if (granularity.value === 'monthly'){
-    labels = ['Jan', 'Feb', 'Mar'];
-  } else if (granularity.value === 'hourly'){
-    labels = ['01:00', '02:00', '03.00', '04.00'];
-  }
-
-  let dataValues = [];
-
-  if (metric.value == 'Cost'){
-    dataValues = [10, 20, 30];
-  } else if (metric.value == 'Usage'){
-    dataValues = [100, 200, 150];
-  } else if (metric.value == 'Amortized Cost'){
-    dataValues = [5, 15, 25];
-  } else if (metric.value == 'Blended Cost'){
-    dataValues = [30, 40, 50];
-  } else if (metric.value == 'Forecasted Cost'){
-    dataValues = [1, 2, 3];
-  }
-
   return {
-    labels,
+    labels: granularityLabels[granularity.value] || [],
     datasets: [
       {
         label: metric.value || 'Metric',
-        data: dataValues,
+        data: metricDataMap[metric.value] || [],
         borderColor: '#4ade80',
         backgroundColor: 'rgba(74,222,128,0.2)',
         tension: 0.4,
-        fill: true
       }
     ]
   };
  
 });
 
-const chartOptions = computed(() => ({
-  responsive: true,
-  maintainAspectRatio: false,
+const chartOptions = computed(() => {
 
-  plugins: {
-    legend: {
-      labels: {
-        color: 'white'
-      }
-    }
-  },
-  scales: {
-    x: {
-      title: {
-        display: true,
-        text: granularity.value,
-        color: 'white'
-      },
-      ticks: {
-        color: 'white'
-      }
-    },
-    y: {
-      title: {
-        display: true,
-        text: metric.value || 'Value',
-        color: 'white'
-      },
-      ticks: {
-        color: 'white'
+  if (visualizationType.value === 'Pie') {
+    return {
+      responsive: true,
+      plugins: {
+        legend: {
+          labels: {
+            color: 'white'
+          }
+        }
       }
     }
   }
-}));
 
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        labels: {
+          color: 'white'
+        }
+      }
+    },
+    scales: {
+      x: {
+        ticks: {
+          color: 'white'
+        }
+      },
+      y: {
+        ticks: {
+          color: 'white'
+        }
+      }
+    }
+  }
+})
 </script>
 
 <template>
 
-<div class="top-filter-bar d-flex justify-content-center align-items-end gap-3 py-3">
-  <div class="data-ex-form-cont">
+<div class="top-filter-bar d-flex justify-content-center align-items-end gap-3 py-2">
+  <div class="">
       <label class="form-label" style="color: white">Provider</label>
       <select class="form-select w-100 custom-form-select" v-model="provider">
         <option value=" " disabled selected>Select a provider</option>  
@@ -204,20 +204,35 @@ const chartOptions = computed(() => ({
       <VueDatePicker v-model="dateRange" :range="true" :dark="true" placeholder="Select your date range"/>
     </div>
   </div>
+  <div>
+    <label class="form-label text-white">Export</label>
+    <div class="data-ex-form-cont d-flex gap-3">
+        <button type="button" class="btn btn-outline-primary">CSV</button>
+        <button type="button" class="btn btn-outline-primary">JSON</button>
+        <button type="button" class="btn btn-outline-primary">Snapshot</button>
+    </div>
+  </div>  
   </div>
     <div class="d-flex justify-content-start">
-    <div style="width: 1000px; height: 600px;">
-      <Line :data="chartData" :options="chartOptions" />
+    <div style="width: 1000px; height: 750px;">
+      <select class="form-select custom-form-select" style="width: 100px"v-model="visualizationType">
+        <option>Line</option>
+        <option>Bar</option>
+        <option>Pie</option>
+      </select>
+      <component :is="chartComponent" :data="chartData" :options="chartOptions"/>
   </div>
 
-  <div class="table-responsive w-100">
-    <table class="metrics-table table table-hover">
+  <div style="width: 900px;" class="table-responsive">
+    <table v-if="service && metric" class="metrics-table table table-hover">
       <thead>
         <tr>
           <th scope="col">#</th>
-          <th scope="col">First</th>
-          <th scope="col">Last</th>
-          <th scope="col">Handle</th>
+          <th 
+          v-for="(item, index) in activeComparisonColumns"
+          :key="index"
+          scope="col">
+          {{ item }}</th>
         </tr>
       </thead>
 
@@ -246,6 +261,5 @@ const chartOptions = computed(() => ({
     </table>
   </div>
 </div>
-
 
 </template>

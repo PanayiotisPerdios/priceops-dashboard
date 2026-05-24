@@ -1,17 +1,27 @@
-body {
-    background-color: #010716;
+.main-content {
+  margin-left: 90px;
+}
+
+.logo {
+  height: 60px;
+  width: auto;
+  transition: transform 0.25s ease;
+}
+
+.logo:hover {
+  transform: scale(1.08);
 }
 
 .c {
-    background-color: #000000;  
-    transition: 0.2s;
-    text-align: center;
-    border: 2px solid rgba(92, 91, 94, 0.219);
+  background-color: #000000;  
+  transition: 0.2s;
+  text-align: center;
+  border: 2px solid rgba(92, 91, 94, 0.219);
 
-    width: 250px;
-    height: 250px;
-    display: flex;
-    flex-direction: column;
+  width: 250px;
+  height: 250px;
+  display: flex;
+  flex-direction: column;
 
 }
 
@@ -44,9 +54,31 @@ body {
 }
 
 .top-filter-bar {
-  width: 100%;
-  background-color: #0b1320;
+  width: 100;
+  background-color: rgba(17, 20, 26, 0.45);
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+
+  margin-left: calc(-50vw + 50%);
+  margin-right: calc(-50vw + 50%);
+    
   border-bottom: 1px solid rgba(255,255,255,0.08);
+  transition:background-color 0.3s ease,backdrop-filter 0.3s ease;
+}
+
+.top-filter-bar.scrolled {
+  background-color: rgba(17, 20, 26, 0.25);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.custom-form-select:hover{
+  border-color: rgba(99,102,241,0.45);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.45);
 }
 
 .metrics-table {
@@ -88,4 +120,167 @@ body {
   }
 }
 
+.navbar-custom {
+  background: linear-gradient(180deg, rgb(20,20,28), rgb(12,12,16));
+  backdrop-filter: blur(10px);
+
+  border-right: 1px solid rgba(255,255,255,0.06);
+
+  box-shadow:
+    inset 1px 0 0 rgba(255,255,255,0.05),
+    2px 0 25px rgba(0,0,0,0.6);
+
+  z-index: 2000;
+}
+
+
+.comparison-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 5rem;
+  min-height: 80vh;
+}
+
+.comparison-kpi-card {
+  width: 320px;
+  height: 420px;
+  padding: 1.5rem;
+  border-radius: 16px;
+
+  background: linear-gradient(
+    180deg,
+    #11141a
+  );
+
+  border: 1px solid rgba(99,102,241,0.2);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.35);
+  transition: 0.25s ease;
+}
+
+.comparison-kpi-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(99,102,241,0.45);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+}
+
+.custom-chart {
+  width: 1000px;
+  height: 750px;
+  padding: 1.5rem;
+  border-radius: 16px;
+
+  background: linear-gradient(
+    180deg,
+    #11141a,
+  );
+
+  border: 1px solid rgba(99,102,241,0.2);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.35);
+  transition: 0.25s ease;
+}
+
+.custom-chart:hover {
+  transform: translateY(-4px);
+  border-color: rgba(99,102,241,0.45);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+}
+
+
+.comparison-table-container {
+  width: 1000px;
+  min-height: 250px;
+  height: auto;
+  padding: 1.5rem;
+  border-radius: 16px;
+
+  background: linear-gradient(
+    180deg,
+    #11141a,
+  );
+
+  border: 1px solid rgba(99,102,241,0.2);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.35);
+  transition: 0.25s ease;
+}
+.comparison-table-container:hover {
+  transform: translateY(-4px);
+  border-color: rgba(99,102,241,0.45);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+}
+
+.comparison-table {
+  --bs-table-bg: transparent;
+  --bs-table-border-color: #2a2f3a;
+  background: transparent !important;
+
+  margin-bottom: 0;
+
+  color: #e5e7ea;
+  overflow: hidden;
+
+  th,
+  td {
+    border-color: #2a2f3a;
+    padding: 0.9rem;
+    background: transparent !important;
+  }
+
+  thead {
+    background: linear-gradient(
+      180deg,
+      #11141a,
+    );
+
+    th {
+      color: #9ca3af;
+      font-weight: 600;
+      border-bottom: 1px solid #2a2f3a;
+      background: #11141a, !important;
+    }
+  }
+
+  tbody tr {
+    transition: 0.2s ease;
+  }
+
+  tbody td {
+    color: #9ca3af;
+  }
+
+  tbody td:hover {
+    background: rgba(184, 190, 181, 0.121);
+  }
+
+  tbody th {
+    color: #6366f1;
+  }
+}
+
+.positive-delta {
+  color: #4ade80 !important;
+  font-weight: 600;
+}
+
+.negative-delta {
+  color: #f87171 !important;
+  font-weight: 600;
+}
+
+.winner-badge {
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.positive-badge {
+  background: rgba(74,222,128,0.14);
+  color: #4ade80;
+}
+
+.negative-badge {
+  background: rgba(248,113,113,0.14);
+  color: #f87171;
+}
 

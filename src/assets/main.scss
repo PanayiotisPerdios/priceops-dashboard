@@ -1,5 +1,7 @@
+@import './bootstrap-custom';
+
 .dp__theme_dark {
-    --dp-background-color: #0b1320;
+    --dp-background-color: #11141a;
     --dp-text-color: #fff;
     --dp-hover-color: #484848;
     --dp-hover-text-color: #fff;
@@ -10,8 +12,8 @@
     --dp-secondary-color: #a9a9a9;
     --dp-border-color: #2d2d2d;
     --dp-menu-border-color: #2d2d2d;
-    --dp-border-color-hover: #aaaeb7;
-    --dp-border-color-focus: #aaaeb7;
+    --dp-border-color-hover: rgba(99,102,241,0.45);
+    --dp-border-color-focus: #6366f1;
     --dp-disabled-color: #737373;
     --dp-disabled-color-text: #d0d0d0;
     --dp-scroll-bar-background: #212121;
@@ -26,4 +28,5 @@
     --dp-range-between-dates-background-color: var(--dp-hover-color, #484848);
     --dp-range-between-dates-text-color: var(--dp-hover-text-color, #fff);
     --dp-range-between-border-color: var(--dp-hover-color, #fff);
+    
 }
