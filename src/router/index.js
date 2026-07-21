@@ -6,6 +6,7 @@ import CompareServices from '../views/CompareServices.vue'
 import CompareProviders from '../views/CompareProviders.vue'
 import CompareScenarios from '../views/CompareScenarios.vue'
 import Optimization from '../views/Optimization.vue'
+import Evaluation from '../views/Evaluation.vue'
 
 
 const routes = [
@@ -32,6 +33,10 @@ const routes = [
   {
     path: '/scenarios',
     component: CompareScenarios
+  },
+  {
+    path: '/evaluation',
+    component: Evaluation
   }
 
 ]

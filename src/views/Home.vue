@@ -27,3 +27,5 @@ const cards = [
         </div>
     </div>   
 </template>
+
+<style scoped src="@/assets/styles/views/Home.scss"></style>

@@ -2,7 +2,6 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { VueDatePicker } from '@vuepic/vue-datepicker'
 import '@vuepic/vue-datepicker/dist/main.css'
-import '@/assets/main.scss'
 
 import {
   Chart as ChartJS,
@@ -41,25 +40,23 @@ import {
   metrics
 } from '@/data/filters'
 
-import { tableColumnMap } from '@/data/tableColumns';
+import { getMetricsForService } from '@/data/metricRegistry';
 
 import {
-  metricDataMap,
-  granularityLabels,
-  providerMetricDataMap
-} from '@/data/chartData'
+  providerMetricDataMap,
+  granularityLabels
+} from '@/mock-data/providerMetricDataMap'
 
 import {
   providerMockData
 } from '@/mock-data/providerMockData'
 
 import {
-  normalizeValue,
-  getScoreLabel,
   getProviderValue,
   getDelta,
   getWinner,
-  getScore
+  getScore,
+  kpiCardColor
 } from '@/utils/calculationServices'
 
 
@@ -78,8 +75,13 @@ const service = ref(null);
 const metric = ref(null);
 
 const activeComparisonColumns = computed(() => {
-  return (tableColumnMap?.[service.value]?.[metric.value]?.fields || [])
+  if (!service.value) return [];
 
+  const allMetrics = getMetricsForService(service.value);
+
+  return Object.entries(allMetrics)
+    .filter(([, def]) => !metric.value || def.category === metric.value)
+    .map(([key, def]) => ({ id: key, ...def }));
 });
 
 const chartComponent = computed(() => {
@@ -107,11 +109,7 @@ const timeNormalization = computed( () =>  {
 
 
 const handleScroll = () => {
-  if(window.scrollY > 20){
-   isScrolled.value = true;
-  }else{
-   isScrolled.value = false;
-  }
+  isScrolled.value = window.scrollY > 20;
 };
 
 onMounted(() => {
@@ -123,39 +121,36 @@ onUnmounted(() => {
 });
 
 const chartData = computed(() => {
-  return {
-      labels: granularityLabels[granularity.value] || [],
-      datasets: [
-        {
-          label: provider1.value || 'Provider A',
-          data: providerMetricDataMap?.[provider1.value]?.[metric.value]  || [],
-          borderColor: '#4ade80',
-          backgroundColor: 'rgba(74,222,128,0.2)',
-          tension: 0.4
-        },
+  const key = subfieldType.value;
+  const svc = service.value;
 
-        {
-        label: provider2.value || 'Provider B',
-        data: providerMetricDataMap?.[provider2.value]?.[metric.value] || [],
-        borderColor: '#6366f1',
-        backgroundColor: 'rgba(99,102,241,0.2)',
+  return {
+    labels: granularityLabels[granularity.value] || [],
+    datasets: [
+      {
+        label: provider1.value || 'Provider A',
+        data: providerMetricDataMap?.[provider1.value]?.[svc]?.[key] || [],
+        borderColor: '#1e44b9',
+        backgroundColor: 'rgba(76, 74, 222, 0.14)',
         tension: 0.4
-        }
+      },
+      {
+        label: provider2.value || 'Provider B',
+        data: providerMetricDataMap?.[provider2.value]?.[svc]?.[key] || [],
+        borderColor: '#ca309e',
+        backgroundColor: 'rgba(248, 113, 201, 0.14)',
+        tension: 0.4
+      }
     ]
   };
 });
 
 const chartOptions = computed(() => {
-
   if (visualizationType.value === 'Pie') {
     return {
       responsive: true,
       plugins: {
-        legend: {
-          labels: {
-            color: 'white'
-          }
-        }
+        legend: { labels: { color: 'white' } }
       }
     }
   }
@@ -164,26 +159,31 @@ const chartOptions = computed(() => {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: {
-        labels: {
-          color: 'white'
-        }
-      }
+      legend: { labels: { color: 'white' } }
     },
     scales: {
-      x: {
-        ticks: {
-          color: 'white'
-        }
-      },
-      y: {
-        ticks: {
-          color: 'white'
-        }
-      }
+      x: { ticks: { color: 'white' } },
+      y: { ticks: { color: 'white' } }
     }
   }
 })
+
+function scoreFor(provider, field) {
+  const value = getProviderValue(providerMockData, provider, service.value, metric.value, field.id);
+  return getScore(field, value);
+}
+
+function valueFor(provider, field) {
+  return getProviderValue(providerMockData, provider, service.value, metric.value, field.id);
+}
+
+function deltaFor(field) {
+  return getDelta(providerMockData, provider1.value, provider2.value, service.value, metric.value, field.id);
+}
+
+function winnerFor(field) {
+  return getWinner(providerMockData, provider1.value, provider2.value, service.value, metric.value, field);
+}
 
 </script>
 
@@ -196,7 +196,7 @@ const chartOptions = computed(() => {
       <select class="form-select w-100 custom-form-select" v-model="service">
         <option value=" " disabled selected>Select a service</option>  
         <option v-for="s in services" :key="s" :value="s">
-        {{ s }}
+          {{ s }}
         </option>
       </select>
   </div>
@@ -205,16 +205,16 @@ const chartOptions = computed(() => {
       <select class="form-select w-100 custom-form-select" v-model="region">
         <option value=" " disabled selected>Select region</option>  
         <option v-for="r in regions" :key="r" :value="r">
-        {{ r }}
+          {{ r }}
         </option>
       </select>
   </div>
   <div class="data-ex-form-cont">
-      <label class="form-label" style="color: white">Metric</label>
+      <label class="form-label" style="color: white">Category</label>
       <select class="form-select w-100 custom-form-select" v-model="metric">
-        <option value=" " disabled selected>Select region</option>  
+        <option value=" " disabled selected>Select category</option>  
         <option v-for="m in metrics" :key="m" :value="m">
-        {{ m }}
+          {{ m }}
         </option>
       </select>
   </div>
@@ -236,87 +236,84 @@ const chartOptions = computed(() => {
 </div>
 <div class="comparison-container">
 
-  <div class="comparison-kpi-card">
+  <div class="comparison-kpi-container">
+    <div class="comparison-kpi-card">
+      <div class="data-ex-form-cont">
+        <label class="form-label text-white">Provider</label>
 
-    <div class="data-ex-form-cont">
-      <label class="form-label text-white">
-        Provider
-      </label>
-
-      <select class="form-select custom-form-select" v-model="provider1">
-        <option disabled selected>
-          Select a provider
-        </option>
-
-        <option v-for="p in providers" :key="p" :value="p">
-        {{ p }}
-        </option>
-      </select>
-        <div v-if="provider1 && provider2 && metric && service" class="mt-3">
-          <div v-for="(item,index) in activeComparisonColumns" :key="index" class="kpi-score-row">
-            <strong>{{ item.name }}</strong>
-              <div>
-                {{ getScore(item, getProviderValue(providerMockData, provider1, service, metric, item.name)).label }}
-      |         {{ getScore(item, getProviderValue(providerMockData, provider1, service, metric, item.name)).normalized.toFixed(1) }}%
-              </div>
+        <select class="form-select custom-form-select" v-model="provider1">
+          <option disabled selected>Select a provider</option>
+          <option v-for="p in providers" :key="p" :value="p">
+            {{ p }}
+          </option>
+        </select>
+        
+          <div v-if="provider1 && provider2 && service && metric" class="mt-3">
+            <div v-for="field in activeComparisonColumns" :key="field.id" class="kpi-score-row">
+              <strong>{{ field.name }} </strong>
+              <div class="kpi" :class="kpiCardColor(scoreFor(provider1, field).label)">
+                  {{ scoreFor(provider1, field).label }}
+                  | {{ scoreFor(provider1, field).normalized.toFixed(1) }}%
+                </div>
+            </div>  
           </div>  
-        </div>  
-    </div>
-
-  </div>
-
-  <div class="custom-chart">  
-    <div class="d-flex justify-content-start">
-      <div style="width: 1000px; height: 650px;">
-        <div class="d-flex gap-2 mb-3">
-          <select class="form-select custom-form-select" style="width: 100px"v-model="visualizationType">
-            <option>Line</option>
-            <option>Bar</option>
-          </select>
-          <select v-if="service && metric" class="form-select custom-form-select" style="width: 200px" v-model="subfieldType">
-            <option v-for="item in activeComparisonColumns" :key="item.name":value="item.name">
-              {{ item.name }}
-            </option>
-          </select>
-        </div>  
-          <component :is="chartComponent" :data="chartData" :options="chartOptions"/>
       </div>
     </div>
-  </div>
-  <div class="comparison-kpi-card">
 
-    <div class="data-ex-form-cont">
-      <label class="form-label text-white">
-        Provider
-      </label>
+  
+    <div class="comparison-kpi-card">
+        <div class="data-ex-form-cont">
+          <label class="form-label text-white">Provider</label>
 
-      <select class="form-select custom-form-select" v-model="provider2">
-        <option disabled selected>
-          Select a provider
-        </option>
+          <select class="form-select custom-form-select" v-model="provider2">
+            <option disabled selected>Select a provider</option>
+            <option v-for="p in providers" :key="p" :value="p">
+              {{ p }}
+            </option>
+          </select>
 
-        <option v-for="p in providers" :key="p" :value="p">
-          {{ p }}
-        </option>
-      </select>
-
-        <div v-if="provider1 && provider2 && metric && service" class="mt-3">
-          <div v-for="(item,index) in activeComparisonColumns" :key="index" class="kpi-score-row">
-            <strong>{{ item.name }}</strong>
-              <div>
-                {{ getScore(item, getProviderValue(providerMockData, provider2, service, metric, item.name)).label }}
-      |         {{ getScore(item, getProviderValue(providerMockData, provider2, service, metric, item.name)).normalized.toFixed(1) }}%
+          <div v-if="provider1 && provider2 && service && metric" class="mt-3">
+            <div v-for="field in activeComparisonColumns" :key="field.id" class="kpi-score-row">
+              <strong>{{ field.name }}</strong>
+              <div class="kpi" :class="kpiCardColor(scoreFor(provider2, field).label)">
+                {{ scoreFor(provider2, field).label }}
+                | {{ scoreFor(provider2, field).normalized.toFixed(1) }}%
               </div>
-          </div>  
+            </div>
+          </div>
         </div>
     </div>
-
   </div>
+
+  <div class="custom-chart">
+      <div class="d-flex justify-content-start">
+        <div style="width: 1000px; height: 650px;">
+          <div class="d-flex gap-2 mb-3">
+            <select class="form-select custom-form-select" style="width: 100px" v-model="visualizationType">
+              <option>Line</option>
+              <option>Bar</option>
+            </select>
+            <select v-if="service" class="form-select custom-form-select" style="width: 200px"
+              v-model="subfieldType">
+              <option v-for="field in activeComparisonColumns" :key="field.id" :value="field.id">
+                {{ field.name }}
+              </option>
+            </select>
+          </div>
+          <div v-if="!subfieldType" class="text-white text-center py-5">
+            Select a metric above to see the comparison chart.
+          </div>
+          <component v-else :is="chartComponent" :data="chartData" :options="chartOptions" />
+        </div>
+      </div>
+  </div>
+
+  
 
 </div>
 
- <div v-if="provider1 && provider2 && metric && service" style="width: 900px;" class="table-responsive comparison-table-container">
-    <table v-if="provider1 && provider2" class="comparison-table table">
+  <div v-if="provider1 && provider2 && service && metric" style="width: 900px;" class="table-responsive comparison-table-container">
+    <table class="comparison-table table">
       <thead>
         <tr>
           <th>Metric</th>
@@ -328,30 +325,24 @@ const chartOptions = computed(() => {
       </thead>
 
       <tbody>
-        <tr v-for="(item,index) in activeComparisonColumns" :key="index">
-          <td>{{ item.name }}</td>
-
-          <td>{{ getProviderValue(providerMockData, provider1, service, metric, item.name)}}</td>
-
-          <td>{{ getProviderValue(providerMockData, provider2, service, metric, item.name) }}</td>
-
-          <td :class="Number(getDelta(provider1, provider2, item.name, providerMockData, service, metric)) < 0
-            ? 'negative-delta'
-            : 'positive-delta'">
-            {{ getDelta(provider1, provider2, item.name, providerMockData, service, metric) }}
+        <tr v-for="field in activeComparisonColumns" :key="field.id">
+          <td>{{ field.name }}</td>
+          <td>{{ valueFor(provider1, field) }}</td>
+          <td>{{ valueFor(provider2, field) }}</td>
+          <td :class="Number(deltaFor(field)) < 0 ? 'negative-delta' : 'positive-delta'">
+            {{ deltaFor(field) }}
           </td>
-
           <td>
-            <span class="winner-badge" :class="getWinner(provider1, provider2, item, providerMockData, service, metric) === provider1
-              ? 'positive-badge'
-              : 'negative-badge'">
-            {{ getWinner(provider1, provider2, item, providerMockData, service, metric) }}
+            <span class="winner-badge"
+              :class="winnerFor(field) === provider1 ? 'positive-badge' : 'negative-badge'">
+              {{ winnerFor(field) }}
             </span>
           </td>
         </tr>
       </tbody>
     </table>
-
   </div>
 
 </template>
+
+<style scoped src="@/assets/styles/views/CompareProviders.scss"></style>

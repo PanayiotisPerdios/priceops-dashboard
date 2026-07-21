@@ -18,17 +18,15 @@ const goToPage = () => {
 </script>
 
 <template>
+  <div class="feature-card h-100 w-100" style="width: 12rem" @click="goToPage">
+    <div class="card-body d-flex flex-column">
+      <h5 class="card-title">{{ title }}</h5>
+      <p class="card-text">{{ message }}</p>
+      <button class="feature-card-btn mt-auto" @click.stop="goToPage">
+        Open <span class="arrow">→</span>
+      </button>
+    </div>
+  </div>
+</template>
 
-    <div class="card h-100 w-100 c" style="width: 12rem">
-        <div class="card-body d-flex flex-column">
-            <h5 class="card-title c-title">{{ title }}</h5>
-            <p class="card-text c-text">{{ message }}</p>
-            <button 
-            class="btn btn-primary card-btn mt-auto"
-            @click="goToPage"
-            >
-            {{ reference }}
-            </button>
-        </div> 
-    </div>    
-</template>    
+<style scoped src="@/assets/styles/components/Card.scss"></style>

@@ -1,0 +1,63 @@
+.comparison-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10rem;
+  min-height: 80vh;
+}
+
+.comparison-kpi-container {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.comparison-kpi-card,
+.custom-chart,
+.comparison-table-container {
+  padding: 1.5rem;
+  border-radius: 16px;
+  background: #11141a;
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+  transition: 0.25s ease;
+}
+.comparison-kpi-card { width: 320px; height: 350px; }
+.custom-chart { width: 1000px; height: 750px; }
+.comparison-table-container { width: 1000px; min-height: 250px; height: auto; }
+
+.comparison-kpi-card:hover,
+.custom-chart:hover,
+.comparison-table-container:hover {
+  transform: translateY(-4px);
+  border-color: rgba(99, 102, 241, 0.45);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+
+.comparison-table {
+  --bs-table-bg: transparent;
+  --bs-table-border-color: #2a2f3a;
+  background: transparent !important;
+  margin-bottom: 0;
+  color: #e5e7ea;
+}
+.comparison-table th,
+.comparison-table td {
+  border-color: #2a2f3a;
+  padding: 0.9rem;
+  background: transparent !important;
+}
+.comparison-table thead th {
+  color: #9ca3af;
+  font-weight: 600;
+  border-bottom: 1px solid #2a2f3a;
+}
+.comparison-table tbody td {
+  color: #9ca3af;
+}
+.comparison-table tbody td:hover {
+  background: rgba(184, 190, 181, 0.121);
+}
+.comparison-table tbody th {
+  color: #6366f1;
+}

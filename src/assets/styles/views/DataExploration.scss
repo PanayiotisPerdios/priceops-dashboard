@@ -1,0 +1,31 @@
+.metrics-table {
+  background: #111827;
+  color: #e5e7ea;
+  overflow: hidden;
+}
+.metrics-table th,
+.metrics-table td {
+  border-color: #2a2f3a;
+  padding: 0.9rem;
+}
+.metrics-table thead {
+  background: #0b1220;
+}
+.metrics-table thead th {
+  color: #9ca3af;
+  font-weight: 600;
+  border-bottom: 1px solid #2a2f3a;
+}
+.metrics-table tbody tr {
+  background: #111827;
+  transition: 0.2s ease;
+}
+.metrics-table tbody td {
+  color: #9ca3af;
+}
+.metrics-table tbody td:hover {
+  background: rgba(184, 190, 181, 0.121);
+}
+.metrics-table tbody th {
+  color: #6366f1;
+}

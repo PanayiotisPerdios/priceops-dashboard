@@ -2,7 +2,6 @@
 import { ref, computed } from 'vue';
 import { VueDatePicker } from '@vuepic/vue-datepicker'
 import '@vuepic/vue-datepicker/dist/main.css'
-import '@/assets/main.scss'
 
 import Card from '@/components/Card.vue'
 
@@ -37,3 +36,5 @@ import { Line } from 'vue-chartjs'
         </div>
     </div>   
 </template>
+
+<style scoped src="@/assets/styles/views/CompareProviders.scss"></style>

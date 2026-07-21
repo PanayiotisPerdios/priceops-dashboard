@@ -1,0 +1,52 @@
+.top-filter-bar {
+  width: 100%;
+  background-color: rgba(17, 20, 26, 0.45);
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  margin-left: calc(-50vw + 50%);
+  margin-right: calc(-50vw + 50%);
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  transition: background-color 0.3s ease, backdrop-filter 0.3s ease;
+
+  &.scrolled {
+    background-color: rgba(17, 20, 26, 0.25);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+}
+
+.custom-form-select,
+.custom-date-select {
+  color: #9ca3af;
+  background-color: #000000;
+
+  &:hover {
+    border-color: rgba(99,102,241,0.45);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+  }
+}
+
+.kpi {
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.positive-kpi { background: rgba(74,222,128,0.14); color: #4ade80; }
+.negative-kpi { background: rgba(248,113,113,0.14); color: #f87171; }
+.neutral-kpi  { background: rgba(156,163,175,0.14); color: #9ca3af; }
+
+.positive-delta { color: #4ade80 !important; font-weight: 600; }
+.negative-delta { color: #f87171 !important; font-weight: 600; }
+
+.winner-badge {
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.positive-badge { background: rgba(76, 74, 222, 0.14); color: #1e44b9; }
+.negative-badge { background: rgba(248, 113, 201, 0.14); color: #ca309e; }
