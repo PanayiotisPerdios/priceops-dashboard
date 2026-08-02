@@ -1,3 +1,25 @@
 @import './bootstrap-overrides';
 @import './vendor-overrides';
 @import './shared';
+
+.main-content {
+  margin-left: 90px;
+  min-height: 100vh;
+}
+
+.page-enter-active,
+.page-leave-active {
+  transition:
+    opacity 0.35s ease,
+    transform 0.35s ease;
+}
+
+.page-enter-from {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.page-leave-to {
+  opacity: 0;
+  transform: translateY(-20px);
+}

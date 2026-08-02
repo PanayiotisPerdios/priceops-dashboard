@@ -1,8 +1,45 @@
-.metrics-table {
-  background: #111827;
-  color: #e5e7ea;
-  overflow: hidden;
+.data-exploration-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10rem;
+  min-height: 80vh;
 }
+
+.data-ex-form-cont {
+  width: 120px;  
+  flex-shrink: 0;
+  flex-grow: 0;
+}
+
+.metrics-table {
+  --bs-table-bg: transparent;
+  --bs-table-border-color: #2a2f3a;
+  background: transparent !important;
+  margin-bottom: 0;
+  color: #e5e7ea;
+}
+
+
+.metrics-table-container {
+  width: 700px;
+  height: 750px;
+  overflow-y: auto;
+  border-radius: 16px;
+  background: #11141a;
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+  transition: 0.25s ease;
+}
+
+
+.metrics-table-container:hover {
+  transform: translateY(-4px);
+  border-color: rgba(99, 102, 241, 0.45);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+
+
 .metrics-table th,
 .metrics-table td {
   border-color: #2a2f3a;

@@ -1,0 +1,1088 @@
+{
+  "Baseline": {
+    "Compute": {
+      "region": "us-east-1",
+      "instance_type": "Standard-Compute",
+      "pricing_model": "OnDemand",
+      "operating_system": "Linux",
+      "tenancy": "Shared",
+      "Reliability": {
+        "uptime": 99.46,
+        "availability": 99.42,
+        "failure_rate": 0.8355
+      },
+      "Amortized Cost": {
+        "long_term_savings": 43.84,
+        "reservation_efficiency": 44.79,
+        "upfront_allocation": 1408.72
+      },
+      "Forecasted Cost": {
+        "predicted_monthly_cost": 2518.97,
+        "growth_trend": 14.16
+      },
+      "Blended Cost": {
+        "internal_allocation": 53.52,
+        "enterprise_share": 55.57,
+        "distributed_usage": 56.66
+      },
+      "Cost": {
+        "avg_monthly_cost": 2247.92,
+        "cost_per_hour": 0.108179,
+        "retail_price": 0.111525,
+        "unit_price": 0.108179
+      },
+      "Usage": {
+        "cpu_usage": 69.97,
+        "memory_usage": 52.67
+      },
+      "Performance": {
+        "response_time": 85.24,
+        "vm_startup_time": 59.29
+      },
+      "Efficiency": {
+        "cpu_efficiency": 40.81,
+        "cost_per_workload": 20.98
+      },
+      "Billing": {
+        "currencyCode": "USD",
+        "meterId": "baseline-base-5f2b-b7e9-baselinecomp",
+        "meterName": "Baseline Compute Tier OnDemand",
+        "productId": "BASELINECOMP",
+        "skuId": "BASELINECOMP/0095",
+        "productName": "Virtual Machines",
+        "skuName": "Baseline Compute Tier",
+        "serviceName": "Virtual Machines",
+        "serviceFamily": "Compute",
+        "unitOfMeasure": "1 Hour",
+        "type": "Consumption",
+        "isPrimaryMeterRegion": true,
+        "armSkuName": "Baseline_Compute",
+        "armRegionName": "useast1",
+        "location": "US East",
+        "effectiveStartDate": "2026-07-01T00:00:00Z"
+      }
+    },
+    "Storage": {
+      "region": "us-east-1",
+      "instance_type": "Standard-Storage",
+      "pricing_model": "OnDemand",
+      "operating_system": "Linux",
+      "tenancy": "Shared",
+      "Reliability": {
+        "uptime": 99.49,
+        "availability": 99.4,
+        "failure_rate": 1.2244
+      },
+      "Amortized Cost": {
+        "long_term_savings": 47.82,
+        "reservation_efficiency": 64.26,
+        "upfront_allocation": 718.63
+      },
+      "Forecasted Cost": {
+        "predicted_monthly_cost": 1609.77,
+        "growth_trend": 9.84
+      },
+      "Blended Cost": {
+        "internal_allocation": 51.98,
+        "enterprise_share": 60.93,
+        "distributed_usage": 63.02
+      },
+      "Cost": {
+        "cost_per_gb": 0.021446,
+        "total_storage_cost": 1446.31,
+        "retail_price": 0.022109,
+        "unit_price": 0.021446
+      },
+      "Usage": {
+        "storage_used": 67345.95
+      },
+      "Performance": {
+        "read_latency": 34.88,
+        "write_latency": 33.78
+      },
+      "Efficiency": {
+        "storage_optimization": 69.69,
+        "compression_efficiency": 58.57
+      },
+      "Billing": {
+        "currencyCode": "USD",
+        "meterId": "baseline-base-5f2b-b7e9-baselinestor",
+        "meterName": "Baseline Storage Tier OnDemand",
+        "productId": "BASELINESTOR",
+        "skuId": "BASELINESTOR/0011",
+        "productName": "Storage",
+        "skuName": "Baseline Storage Tier",
+        "serviceName": "Storage",
+        "serviceFamily": "Storage",
+        "unitOfMeasure": "1 GB/Month",
+        "type": "Consumption",
+        "isPrimaryMeterRegion": true,
+        "armSkuName": "Baseline_Storage",
+        "armRegionName": "useast1",
+        "location": "US East",
+        "effectiveStartDate": "2026-07-01T00:00:00Z"
+      }
+    },
+    "Database": {
+      "region": "us-east-1",
+      "instance_type": "Standard-Database",
+      "pricing_model": "OnDemand",
+      "operating_system": "Linux",
+      "tenancy": "Shared",
+      "Reliability": {
+        "uptime": 99.43,
+        "availability": 99.4,
+        "failure_rate": 0.9043,
+        "failover_time": 34.2
+      },
+      "Amortized Cost": {
+        "long_term_savings": 72.33,
+        "reservation_efficiency": 50.76,
+        "upfront_allocation": 392.56
+      },
+      "Forecasted Cost": {
+        "predicted_monthly_cost": 1285.48,
+        "growth_trend": 15.16
+      },
+      "Blended Cost": {
+        "internal_allocation": 57.28,
+        "enterprise_share": 54.33,
+        "distributed_usage": 51.13
+      },
+      "Cost": {
+        "db_instance_cost": 761.94,
+        "query_cost": 337.12,
+        "retail_price": 1.058959,
+        "unit_price": 1.02719
+      },
+      "Usage": {
+        "query_volume": 57773626.4
+      },
+      "Performance": {
+        "query_latency": 47.02
+      },
+      "Efficiency": {
+        "cache_efficiency": 57.25
+      },
+      "Billing": {
+        "currencyCode": "USD",
+        "meterId": "baseline-base-5f2b-b7e9-baselinedata",
+        "meterName": "Baseline Database Tier OnDemand",
+        "productId": "BASELINEDATA",
+        "skuId": "BASELINEDATA/0097",
+        "productName": "Managed Database",
+        "skuName": "Baseline Database Tier",
+        "serviceName": "Database",
+        "serviceFamily": "Databases",
+        "unitOfMeasure": "1 Hour",
+        "type": "Consumption",
+        "isPrimaryMeterRegion": true,
+        "armSkuName": "Baseline_Database",
+        "armRegionName": "useast1",
+        "location": "US East",
+        "effectiveStartDate": "2026-07-01T00:00:00Z"
+      }
+    },
+    "Networking": {
+      "region": "us-east-1",
+      "instance_type": "Standard-Networking",
+      "pricing_model": "OnDemand",
+      "operating_system": "Linux",
+      "tenancy": "Shared",
+      "Reliability": {
+        "uptime": 99.55,
+        "availability": 99.3,
+        "failure_rate": 0.984
+      },
+      "Amortized Cost": {
+        "long_term_savings": 63.97,
+        "reservation_efficiency": 55.89,
+        "upfront_allocation": 25.07
+      },
+      "Forecasted Cost": {
+        "predicted_monthly_cost": 4763.2,
+        "growth_trend": 13.05
+      },
+      "Blended Cost": {
+        "internal_allocation": 60.54,
+        "enterprise_share": 53.26,
+        "distributed_usage": 61.06
+      },
+      "Cost": {
+        "egress_cost": 4254.66,
+        "retail_price": 0.092073,
+        "unit_price": 0.089311
+      },
+      "Usage": {
+        "inbound_traffic": 48026.21
+      },
+      "Performance": {
+        "latency": 32.22,
+        "packet_loss": 0.54147
+      },
+      "Efficiency": {
+        "routing_efficiency": 58.24
+      },
+      "Billing": {
+        "currencyCode": "USD",
+        "meterId": "baseline-base-5f2b-b7e9-baselinenetw",
+        "meterName": "Baseline Networking Tier OnDemand",
+        "productId": "BASELINENETW",
+        "skuId": "BASELINENETW/0025",
+        "productName": "Data Transfer",
+        "skuName": "Baseline Networking Tier",
+        "serviceName": "Bandwidth",
+        "serviceFamily": "Networking",
+        "unitOfMeasure": "1 GB",
+        "type": "Consumption",
+        "isPrimaryMeterRegion": true,
+        "armSkuName": "Baseline_Networking",
+        "armRegionName": "useast1",
+        "location": "US East",
+        "effectiveStartDate": "2026-07-01T00:00:00Z"
+      }
+    },
+    "Kubernetes": {
+      "region": "us-east-1",
+      "instance_type": "Standard-Kubernetes",
+      "pricing_model": "OnDemand",
+      "operating_system": "Linux",
+      "tenancy": "Shared",
+      "Reliability": {
+        "uptime": 99.47,
+        "availability": 99.48,
+        "failure_rate": 1.0679,
+        "pod_restart_rate": 6.74
+      },
+      "Amortized Cost": {
+        "long_term_savings": 42.85,
+        "reservation_efficiency": 53.27,
+        "upfront_allocation": 592.54
+      },
+      "Forecasted Cost": {
+        "predicted_monthly_cost": 1188.47,
+        "growth_trend": 15.96
+      },
+      "Blended Cost": {
+        "internal_allocation": 55.15,
+        "enterprise_share": 58.45,
+        "distributed_usage": 60.79
+      },
+      "Cost": {
+        "cluster_cost": 1008.33,
+        "retail_price": 1.428746,
+        "unit_price": 1.385884
+      },
+      "Usage": {
+        "node_utilization": 36.21
+      },
+      "Performance": {
+        "pod_startup_time": 5.63
+      },
+      "Efficiency": {
+        "cluster_efficiency": 45.8
+      },
+      "Billing": {
+        "currencyCode": "USD",
+        "meterId": "baseline-base-5f2b-b7e9-baselinekube",
+        "meterName": "Baseline Kubernetes Tier OnDemand",
+        "productId": "BASELINEKUBE",
+        "skuId": "BASELINEKUBE/0053",
+        "productName": "Managed Kubernetes",
+        "skuName": "Baseline Kubernetes Tier",
+        "serviceName": "Kubernetes Service",
+        "serviceFamily": "Compute",
+        "unitOfMeasure": "1 Cluster Hour",
+        "type": "Consumption",
+        "isPrimaryMeterRegion": true,
+        "armSkuName": "Baseline_Kubernetes",
+        "armRegionName": "useast1",
+        "location": "US East",
+        "effectiveStartDate": "2026-07-01T00:00:00Z"
+      }
+    },
+    "Serverless": {
+      "region": "us-east-1",
+      "instance_type": "Standard-Serverless",
+      "pricing_model": "OnDemand",
+      "operating_system": "Linux",
+      "tenancy": "Shared",
+      "Reliability": {
+        "uptime": 99.37,
+        "availability": 99.62,
+        "failure_rate": 0.8432,
+        "error_rate": 3.08
+      },
+      "Amortized Cost": {
+        "long_term_savings": 63.29,
+        "reservation_efficiency": 42.26,
+        "upfront_allocation": 71.45
+      },
+      "Forecasted Cost": {
+        "predicted_monthly_cost": 136.74,
+        "growth_trend": 13.93
+      },
+      "Blended Cost": {
+        "internal_allocation": 53.3,
+        "enterprise_share": 53.83,
+        "distributed_usage": 56.71
+      },
+      "Cost": {
+        "execution_cost": 119.58,
+        "retail_price": 0.215059,
+        "unit_price": 0.208607
+      },
+      "Usage": {
+        "invocation_count": 565473311.13
+      },
+      "Performance": {
+        "cold_start_time": 904.39
+      },
+      "Efficiency": {
+        "execution_efficiency": 46.38
+      },
+      "Billing": {
+        "currencyCode": "USD",
+        "meterId": "baseline-base-5f2b-b7e9-baselineserv",
+        "meterName": "Baseline Serverless Tier OnDemand",
+        "productId": "BASELINESERV",
+        "skuId": "BASELINESERV/0082",
+        "productName": "Functions",
+        "skuName": "Baseline Serverless Tier",
+        "serviceName": "Serverless Compute",
+        "serviceFamily": "Compute",
+        "unitOfMeasure": "1M Invocations",
+        "type": "Consumption",
+        "isPrimaryMeterRegion": true,
+        "armSkuName": "Baseline_Serverless",
+        "armRegionName": "useast1",
+        "location": "US East",
+        "effectiveStartDate": "2026-07-01T00:00:00Z"
+      }
+    }
+  },
+  "Optimized": {
+    "Compute": {
+      "region": "us-west-2",
+      "instance_type": "Optimized-Compute",
+      "pricing_model": "Reserved",
+      "operating_system": "Linux",
+      "tenancy": "Dedicated",
+      "Reliability": {
+        "uptime": 99.99,
+        "availability": 99.99,
+        "failure_rate": 0.7342
+      },
+      "Amortized Cost": {
+        "long_term_savings": 53.69,
+        "reservation_efficiency": 53.8,
+        "upfront_allocation": 1284.22
+      },
+      "Forecasted Cost": {
+        "predicted_monthly_cost": 2174,
+        "growth_trend": 10.88
+      },
+      "Blended Cost": {
+        "internal_allocation": 53.8,
+        "enterprise_share": 53.13,
+        "distributed_usage": 52.31
+      },
+      "Cost": {
+        "avg_monthly_cost": 1972.88,
+        "cost_per_hour": 0.081884,
+        "retail_price": 0.094119,
+        "unit_price": 0.081884
+      },
+      "Usage": {
+        "cpu_usage": 72.64,
+        "memory_usage": 49.19
+      },
+      "Performance": {
+        "response_time": 88.53,
+        "vm_startup_time": 59.93
+      },
+      "Efficiency": {
+        "cpu_efficiency": 40.27,
+        "cost_per_workload": 18.38
+      },
+      "Billing": {
+        "currencyCode": "USD",
+        "meterId": "optimize-opti-5f2b-b7e9-optimizedcom",
+        "meterName": "Optimized Compute Tier Reserved",
+        "productId": "OPTIMIZEDCOM",
+        "skuId": "OPTIMIZEDCOM/0024",
+        "productName": "Virtual Machines",
+        "skuName": "Optimized Compute Tier",
+        "serviceName": "Virtual Machines",
+        "serviceFamily": "Compute",
+        "unitOfMeasure": "1 Hour",
+        "type": "Reservation",
+        "isPrimaryMeterRegion": true,
+        "armSkuName": "Optimized_Compute",
+        "armRegionName": "uswest2",
+        "location": "US West",
+        "effectiveStartDate": "2026-07-01T00:00:00Z"
+      }
+    },
+    "Storage": {
+      "region": "us-west-2",
+      "instance_type": "Optimized-Storage",
+      "pricing_model": "Reserved",
+      "operating_system": "Linux",
+      "tenancy": "Dedicated",
+      "Reliability": {
+        "uptime": 99.99,
+        "availability": 99.99,
+        "failure_rate": 1.2412
+      },
+      "Amortized Cost": {
+        "long_term_savings": 60.91,
+        "reservation_efficiency": 76.6,
+        "upfront_allocation": 562.66
+      },
+      "Forecasted Cost": {
+        "predicted_monthly_cost": 1227.64,
+        "growth_trend": 7.5
+      },
+      "Blended Cost": {
+        "internal_allocation": 52.34,
+        "enterprise_share": 62.54,
+        "distributed_usage": 64.02
+      },
+      "Cost": {
+        "cost_per_gb": 0.017648,
+        "total_storage_cost": 1154.46,
+        "retail_price": 0.020285,
+        "unit_price": 0.017648
+      },
+      "Usage": {
+        "storage_used": 66007.28
+      },
+      "Performance": {
+        "read_latency": 30.11,
+        "write_latency": 34.82
+      },
+      "Efficiency": {
+        "storage_optimization": 65.44,
+        "compression_efficiency": 60.94
+      },
+      "Billing": {
+        "currencyCode": "USD",
+        "meterId": "optimize-opti-5f2b-b7e9-optimizedsto",
+        "meterName": "Optimized Storage Tier Reserved",
+        "productId": "OPTIMIZEDSTO",
+        "skuId": "OPTIMIZEDSTO/0027",
+        "productName": "Storage",
+        "skuName": "Optimized Storage Tier",
+        "serviceName": "Storage",
+        "serviceFamily": "Storage",
+        "unitOfMeasure": "1 GB/Month",
+        "type": "Reservation",
+        "isPrimaryMeterRegion": true,
+        "armSkuName": "Optimized_Storage",
+        "armRegionName": "uswest2",
+        "location": "US West",
+        "effectiveStartDate": "2026-07-01T00:00:00Z"
+      }
+    },
+    "Database": {
+      "region": "us-west-2",
+      "instance_type": "Optimized-Database",
+      "pricing_model": "Reserved",
+      "operating_system": "Linux",
+      "tenancy": "Dedicated",
+      "Reliability": {
+        "uptime": 99.99,
+        "availability": 99.99,
+        "failure_rate": 0.9245,
+        "failover_time": 32.44
+      },
+      "Amortized Cost": {
+        "long_term_savings": 84.42,
+        "reservation_efficiency": 58.72,
+        "upfront_allocation": 336.24
+      },
+      "Forecasted Cost": {
+        "predicted_monthly_cost": 912.37,
+        "growth_trend": 12.46
+      },
+      "Blended Cost": {
+        "internal_allocation": 57.68,
+        "enterprise_share": 55.31,
+        "distributed_usage": 50.14
+      },
+      "Cost": {
+        "db_instance_cost": 565.98,
+        "query_cost": 258.38,
+        "retail_price": 0.912792,
+        "unit_price": 0.794129
+      },
+      "Usage": {
+        "query_volume": 53147369.8
+      },
+      "Performance": {
+        "query_latency": 41.11
+      },
+      "Efficiency": {
+        "cache_efficiency": 54.23
+      },
+      "Billing": {
+        "currencyCode": "USD",
+        "meterId": "optimize-opti-5f2b-b7e9-optimizeddat",
+        "meterName": "Optimized Database Tier Reserved",
+        "productId": "OPTIMIZEDDAT",
+        "skuId": "OPTIMIZEDDAT/0075",
+        "productName": "Managed Database",
+        "skuName": "Optimized Database Tier",
+        "serviceName": "Database",
+        "serviceFamily": "Databases",
+        "unitOfMeasure": "1 Hour",
+        "type": "Reservation",
+        "isPrimaryMeterRegion": true,
+        "armSkuName": "Optimized_Database",
+        "armRegionName": "uswest2",
+        "location": "US West",
+        "effectiveStartDate": "2026-07-01T00:00:00Z"
+      }
+    },
+    "Networking": {
+      "region": "us-west-2",
+      "instance_type": "Optimized-Networking",
+      "pricing_model": "Reserved",
+      "operating_system": "Linux",
+      "tenancy": "Dedicated",
+      "Reliability": {
+        "uptime": 99.99,
+        "availability": 99.99,
+        "failure_rate": 1.1097
+      },
+      "Amortized Cost": {
+        "long_term_savings": 87.03,
+        "reservation_efficiency": 71.09,
+        "upfront_allocation": 21.18
+      },
+      "Forecasted Cost": {
+        "predicted_monthly_cost": 3198.85,
+        "growth_trend": 10.36
+      },
+      "Blended Cost": {
+        "internal_allocation": 61.07,
+        "enterprise_share": 52.66,
+        "distributed_usage": 61.63
+      },
+      "Cost": {
+        "egress_cost": 2852.36,
+        "retail_price": 0.078266,
+        "unit_price": 0.068091
+      },
+      "Usage": {
+        "inbound_traffic": 42431.55
+      },
+      "Performance": {
+        "latency": 31.96,
+        "packet_loss": 0.61934
+      },
+      "Efficiency": {
+        "routing_efficiency": 57.94
+      },
+      "Billing": {
+        "currencyCode": "USD",
+        "meterId": "optimize-opti-5f2b-b7e9-optimizednet",
+        "meterName": "Optimized Networking Tier Reserved",
+        "productId": "OPTIMIZEDNET",
+        "skuId": "OPTIMIZEDNET/0033",
+        "productName": "Data Transfer",
+        "skuName": "Optimized Networking Tier",
+        "serviceName": "Bandwidth",
+        "serviceFamily": "Networking",
+        "unitOfMeasure": "1 GB",
+        "type": "Reservation",
+        "isPrimaryMeterRegion": true,
+        "armSkuName": "Optimized_Networking",
+        "armRegionName": "uswest2",
+        "location": "US West",
+        "effectiveStartDate": "2026-07-01T00:00:00Z"
+      }
+    },
+    "Kubernetes": {
+      "region": "us-west-2",
+      "instance_type": "Optimized-Kubernetes",
+      "pricing_model": "Reserved",
+      "operating_system": "Linux",
+      "tenancy": "Dedicated",
+      "Reliability": {
+        "uptime": 99.99,
+        "availability": 99.99,
+        "failure_rate": 0.9608,
+        "pod_restart_rate": 6.22
+      },
+      "Amortized Cost": {
+        "long_term_savings": 51.51,
+        "reservation_efficiency": 67.27,
+        "upfront_allocation": 482.77
+      },
+      "Forecasted Cost": {
+        "predicted_monthly_cost": 883.82,
+        "growth_trend": 13.8
+      },
+      "Blended Cost": {
+        "internal_allocation": 57.63,
+        "enterprise_share": 58.37,
+        "distributed_usage": 63.17
+      },
+      "Cost": {
+        "cluster_cost": 784.46,
+        "retail_price": 1.208994,
+        "unit_price": 1.051825
+      },
+      "Usage": {
+        "node_utilization": 39.72
+      },
+      "Performance": {
+        "pod_startup_time": 5.37
+      },
+      "Efficiency": {
+        "cluster_efficiency": 48.14
+      },
+      "Billing": {
+        "currencyCode": "USD",
+        "meterId": "optimize-opti-5f2b-b7e9-optimizedkub",
+        "meterName": "Optimized Kubernetes Tier Reserved",
+        "productId": "OPTIMIZEDKUB",
+        "skuId": "OPTIMIZEDKUB/0062",
+        "productName": "Managed Kubernetes",
+        "skuName": "Optimized Kubernetes Tier",
+        "serviceName": "Kubernetes Service",
+        "serviceFamily": "Compute",
+        "unitOfMeasure": "1 Cluster Hour",
+        "type": "Reservation",
+        "isPrimaryMeterRegion": true,
+        "armSkuName": "Optimized_Kubernetes",
+        "armRegionName": "uswest2",
+        "location": "US West",
+        "effectiveStartDate": "2026-07-01T00:00:00Z"
+      }
+    },
+    "Serverless": {
+      "region": "us-west-2",
+      "instance_type": "Optimized-Serverless",
+      "pricing_model": "Reserved",
+      "operating_system": "Linux",
+      "tenancy": "Dedicated",
+      "Reliability": {
+        "uptime": 99.99,
+        "availability": 99.99,
+        "failure_rate": 0.7423,
+        "error_rate": 3.13
+      },
+      "Amortized Cost": {
+        "long_term_savings": 82.93,
+        "reservation_efficiency": 53.78,
+        "upfront_allocation": 56.97
+      },
+      "Forecasted Cost": {
+        "predicted_monthly_cost": 99.26,
+        "growth_trend": 10.83
+      },
+      "Blended Cost": {
+        "internal_allocation": 53.58,
+        "enterprise_share": 52.71,
+        "distributed_usage": 56.33
+      },
+      "Cost": {
+        "execution_cost": 90.61,
+        "retail_price": 0.184891,
+        "unit_price": 0.160855
+      },
+      "Usage": {
+        "invocation_count": 550219419.02
+      },
+      "Performance": {
+        "cold_start_time": 969.03
+      },
+      "Efficiency": {
+        "execution_efficiency": 50.18
+      },
+      "Billing": {
+        "currencyCode": "USD",
+        "meterId": "optimize-opti-5f2b-b7e9-optimizedser",
+        "meterName": "Optimized Serverless Tier Reserved",
+        "productId": "OPTIMIZEDSER",
+        "skuId": "OPTIMIZEDSER/0033",
+        "productName": "Functions",
+        "skuName": "Optimized Serverless Tier",
+        "serviceName": "Serverless Compute",
+        "serviceFamily": "Compute",
+        "unitOfMeasure": "1M Invocations",
+        "type": "Reservation",
+        "isPrimaryMeterRegion": true,
+        "armSkuName": "Optimized_Serverless",
+        "armRegionName": "uswest2",
+        "location": "US West",
+        "effectiveStartDate": "2026-07-01T00:00:00Z"
+      }
+    }
+  },
+  "Cost-First Policy": {
+    "Compute": {
+      "region": "eu-central-1",
+      "instance_type": "Economy-Compute",
+      "pricing_model": "Spot",
+      "operating_system": "Linux",
+      "tenancy": "Shared",
+      "Reliability": {
+        "uptime": 96.57,
+        "availability": 96.54,
+        "failure_rate": 0.8795
+      },
+      "Amortized Cost": {
+        "long_term_savings": 63.37,
+        "reservation_efficiency": 66.12,
+        "upfront_allocation": 930.45
+      },
+      "Forecasted Cost": {
+        "predicted_monthly_cost": 1357.02,
+        "growth_trend": 9.52
+      },
+      "Blended Cost": {
+        "internal_allocation": 52.2,
+        "enterprise_share": 53.44,
+        "distributed_usage": 57.75
+      },
+      "Cost": {
+        "avg_monthly_cost": 1263.03,
+        "cost_per_hour": 0.054763,
+        "retail_price": 0.071121,
+        "unit_price": 0.054763
+      },
+      "Usage": {
+        "cpu_usage": 58.53,
+        "memory_usage": 52.07
+      },
+      "Performance": {
+        "response_time": 92.92,
+        "vm_startup_time": 73.81
+      },
+      "Efficiency": {
+        "cpu_efficiency": 36.58,
+        "cost_per_workload": 12.84
+      },
+      "Billing": {
+        "currencyCode": "USD",
+        "meterId": "costfirs-cost-5f2b-b7e9-costfirstpol",
+        "meterName": "Cost-First Policy Compute Tier Spot",
+        "productId": "COSTFIRSTPOL",
+        "skuId": "COSTFIRSTPOL/0077",
+        "productName": "Virtual Machines",
+        "skuName": "Cost-First Policy Compute Tier",
+        "serviceName": "Virtual Machines",
+        "serviceFamily": "Compute",
+        "unitOfMeasure": "1 Hour",
+        "type": "Consumption",
+        "isPrimaryMeterRegion": true,
+        "armSkuName": "Cost-FirstPolicy_Compute",
+        "armRegionName": "eucentral1",
+        "location": "EU Central",
+        "effectiveStartDate": "2026-07-01T00:00:00Z"
+      }
+    },
+    "Storage": {
+      "region": "eu-central-1",
+      "instance_type": "Economy-Storage",
+      "pricing_model": "Spot",
+      "operating_system": "Linux",
+      "tenancy": "Shared",
+      "Reliability": {
+        "uptime": 96.51,
+        "availability": 96.3,
+        "failure_rate": 1.3254
+      },
+      "Amortized Cost": {
+        "long_term_savings": 70.87,
+        "reservation_efficiency": 89.25,
+        "upfront_allocation": 473.92
+      },
+      "Forecasted Cost": {
+        "predicted_monthly_cost": 849.46,
+        "growth_trend": 6.27
+      },
+      "Blended Cost": {
+        "internal_allocation": 50.3,
+        "enterprise_share": 64.7,
+        "distributed_usage": 59.87
+      },
+      "Cost": {
+        "cost_per_gb": 0.01145,
+        "total_storage_cost": 796.12,
+        "retail_price": 0.01487,
+        "unit_price": 0.01145
+      },
+      "Usage": {
+        "storage_used": 68926.44
+      },
+      "Performance": {
+        "read_latency": 38.79,
+        "write_latency": 41.97
+      },
+      "Efficiency": {
+        "storage_optimization": 71.78,
+        "compression_efficiency": 56
+      },
+      "Billing": {
+        "currencyCode": "USD",
+        "meterId": "costfirs-cost-5f2b-b7e9-costfirstpol",
+        "meterName": "Cost-First Policy Storage Tier Spot",
+        "productId": "COSTFIRSTPOL",
+        "skuId": "COSTFIRSTPOL/0053",
+        "productName": "Storage",
+        "skuName": "Cost-First Policy Storage Tier",
+        "serviceName": "Storage",
+        "serviceFamily": "Storage",
+        "unitOfMeasure": "1 GB/Month",
+        "type": "Consumption",
+        "isPrimaryMeterRegion": true,
+        "armSkuName": "Cost-FirstPolicy_Storage",
+        "armRegionName": "eucentral1",
+        "location": "EU Central",
+        "effectiveStartDate": "2026-07-01T00:00:00Z"
+      }
+    },
+    "Database": {
+      "region": "eu-central-1",
+      "instance_type": "Economy-Database",
+      "pricing_model": "Spot",
+      "operating_system": "Linux",
+      "tenancy": "Shared",
+      "Reliability": {
+        "uptime": 96.42,
+        "availability": 96.4,
+        "failure_rate": 0.9971,
+        "failover_time": 35.38
+      },
+      "Amortized Cost": {
+        "long_term_savings": 95,
+        "reservation_efficiency": 70.33,
+        "upfront_allocation": 260.87
+      },
+      "Forecasted Cost": {
+        "predicted_monthly_cost": 644.65,
+        "growth_trend": 9.47
+      },
+      "Blended Cost": {
+        "internal_allocation": 53.31,
+        "enterprise_share": 57.22,
+        "distributed_usage": 51.93
+      },
+      "Cost": {
+        "db_instance_cost": 365.83,
+        "query_cost": 224.91,
+        "retail_price": 0.669532,
+        "unit_price": 0.51554
+      },
+      "Usage": {
+        "query_volume": 61393113.49
+      },
+      "Performance": {
+        "query_latency": 48.64
+      },
+      "Efficiency": {
+        "cache_efficiency": 49.82
+      },
+      "Billing": {
+        "currencyCode": "USD",
+        "meterId": "costfirs-cost-5f2b-b7e9-costfirstpol",
+        "meterName": "Cost-First Policy Database Tier Spot",
+        "productId": "COSTFIRSTPOL",
+        "skuId": "COSTFIRSTPOL/0024",
+        "productName": "Managed Database",
+        "skuName": "Cost-First Policy Database Tier",
+        "serviceName": "Database",
+        "serviceFamily": "Databases",
+        "unitOfMeasure": "1 Hour",
+        "type": "Consumption",
+        "isPrimaryMeterRegion": true,
+        "armSkuName": "Cost-FirstPolicy_Database",
+        "armRegionName": "eucentral1",
+        "location": "EU Central",
+        "effectiveStartDate": "2026-07-01T00:00:00Z"
+      }
+    },
+    "Networking": {
+      "region": "eu-central-1",
+      "instance_type": "Economy-Networking",
+      "pricing_model": "Spot",
+      "operating_system": "Linux",
+      "tenancy": "Shared",
+      "Reliability": {
+        "uptime": 96.69,
+        "availability": 96.33,
+        "failure_rate": 1.1656
+      },
+      "Amortized Cost": {
+        "long_term_savings": 95,
+        "reservation_efficiency": 86.62,
+        "upfront_allocation": 16.96
+      },
+      "Forecasted Cost": {
+        "predicted_monthly_cost": 2302.9,
+        "growth_trend": 8.69
+      },
+      "Blended Cost": {
+        "internal_allocation": 63.07,
+        "enterprise_share": 54.66,
+        "distributed_usage": 58.89
+      },
+      "Cost": {
+        "egress_cost": 2108.02,
+        "retail_price": 0.05623,
+        "unit_price": 0.043297
+      },
+      "Usage": {
+        "inbound_traffic": 48551.89
+      },
+      "Performance": {
+        "latency": 37.95,
+        "packet_loss": 0.58849
+      },
+      "Efficiency": {
+        "routing_efficiency": 52.94
+      },
+      "Billing": {
+        "currencyCode": "USD",
+        "meterId": "costfirs-cost-5f2b-b7e9-costfirstpol",
+        "meterName": "Cost-First Policy Networking Tier Spot",
+        "productId": "COSTFIRSTPOL",
+        "skuId": "COSTFIRSTPOL/0066",
+        "productName": "Data Transfer",
+        "skuName": "Cost-First Policy Networking Tier",
+        "serviceName": "Bandwidth",
+        "serviceFamily": "Networking",
+        "unitOfMeasure": "1 GB",
+        "type": "Consumption",
+        "isPrimaryMeterRegion": true,
+        "armSkuName": "Cost-FirstPolicy_Networking",
+        "armRegionName": "eucentral1",
+        "location": "EU Central",
+        "effectiveStartDate": "2026-07-01T00:00:00Z"
+      }
+    },
+    "Kubernetes": {
+      "region": "eu-central-1",
+      "instance_type": "Economy-Kubernetes",
+      "pricing_model": "Spot",
+      "operating_system": "Linux",
+      "tenancy": "Shared",
+      "Reliability": {
+        "uptime": 96.49,
+        "availability": 96.45,
+        "failure_rate": 1.0935,
+        "pod_restart_rate": 6.44
+      },
+      "Amortized Cost": {
+        "long_term_savings": 61.52,
+        "reservation_efficiency": 82.26,
+        "upfront_allocation": 371.81
+      },
+      "Forecasted Cost": {
+        "predicted_monthly_cost": 588.57,
+        "growth_trend": 10.39
+      },
+      "Blended Cost": {
+        "internal_allocation": 57.71,
+        "enterprise_share": 63.89,
+        "distributed_usage": 62.49
+      },
+      "Cost": {
+        "cluster_cost": 528.55,
+        "retail_price": 0.93201,
+        "unit_price": 0.717648
+      },
+      "Usage": {
+        "node_utilization": 34.64
+      },
+      "Performance": {
+        "pod_startup_time": 5.59
+      },
+      "Efficiency": {
+        "cluster_efficiency": 40.45
+      },
+      "Billing": {
+        "currencyCode": "USD",
+        "meterId": "costfirs-cost-5f2b-b7e9-costfirstpol",
+        "meterName": "Cost-First Policy Kubernetes Tier Spot",
+        "productId": "COSTFIRSTPOL",
+        "skuId": "COSTFIRSTPOL/0050",
+        "productName": "Managed Kubernetes",
+        "skuName": "Cost-First Policy Kubernetes Tier",
+        "serviceName": "Kubernetes Service",
+        "serviceFamily": "Compute",
+        "unitOfMeasure": "1 Cluster Hour",
+        "type": "Consumption",
+        "isPrimaryMeterRegion": true,
+        "armSkuName": "Cost-FirstPolicy_Kubernetes",
+        "armRegionName": "eucentral1",
+        "location": "EU Central",
+        "effectiveStartDate": "2026-07-01T00:00:00Z"
+      }
+    },
+    "Serverless": {
+      "region": "eu-central-1",
+      "instance_type": "Economy-Serverless",
+      "pricing_model": "Spot",
+      "operating_system": "Linux",
+      "tenancy": "Shared",
+      "Reliability": {
+        "uptime": 96.52,
+        "availability": 96.57,
+        "failure_rate": 0.809,
+        "error_rate": 3.21
+      },
+      "Amortized Cost": {
+        "long_term_savings": 94.71,
+        "reservation_efficiency": 66.64,
+        "upfront_allocation": 48.06
+      },
+      "Forecasted Cost": {
+        "predicted_monthly_cost": 73.83,
+        "growth_trend": 9.88
+      },
+      "Blended Cost": {
+        "internal_allocation": 56.24,
+        "enterprise_share": 53.37,
+        "distributed_usage": 55.21
+      },
+      "Cost": {
+        "execution_cost": 66.58,
+        "retail_price": 0.145469,
+        "unit_price": 0.112011
+      },
+      "Usage": {
+        "invocation_count": 588081851.22
+      },
+      "Performance": {
+        "cold_start_time": 1077.09
+      },
+      "Efficiency": {
+        "execution_efficiency": 43.43
+      },
+      "Billing": {
+        "currencyCode": "USD",
+        "meterId": "costfirs-cost-5f2b-b7e9-costfirstpol",
+        "meterName": "Cost-First Policy Serverless Tier Spot",
+        "productId": "COSTFIRSTPOL",
+        "skuId": "COSTFIRSTPOL/0066",
+        "productName": "Functions",
+        "skuName": "Cost-First Policy Serverless Tier",
+        "serviceName": "Serverless Compute",
+        "serviceFamily": "Compute",
+        "unitOfMeasure": "1M Invocations",
+        "type": "Consumption",
+        "isPrimaryMeterRegion": true,
+        "armSkuName": "Cost-FirstPolicy_Serverless",
+        "armRegionName": "eucentral1",
+        "location": "EU Central",
+        "effectiveStartDate": "2026-07-01T00:00:00Z"
+      }
+    }
+  }
+}

@@ -2,9 +2,7 @@ import {createRouter, createWebHistory} from 'vue-router'
 
 import Home from '../views/Home.vue'
 import DataExploration from '../views/DataExploration.vue'
-import CompareServices from '../views/CompareServices.vue'
-import CompareProviders from '../views/CompareProviders.vue'
-import CompareScenarios from '../views/CompareScenarios.vue'
+import Compare from '../views/Compare.vue'
 import Optimization from '../views/Optimization.vue'
 import Evaluation from '../views/Evaluation.vue'
 
@@ -19,20 +17,12 @@ const routes = [
     component: DataExploration 
   },
   { 
-    path: '/compare', 
-    component: CompareServices 
-  },
-  { 
     path: '/optimization', 
     component: Optimization 
   },
   {
-    path: '/providers',
-    component: CompareProviders
-  },
-  {
-    path: '/scenarios',
-    component: CompareScenarios
+    path: '/compare',
+    component: Compare
   },
   {
     path: '/evaluation',

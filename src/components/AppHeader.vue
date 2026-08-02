@@ -1,11 +1,26 @@
 <script setup>
+import logo from '@/assets/price_ops_logo.svg'
 </script>
 
 <template>
-  <nav class="navbar-custom text-white vh-100 position-fixed d-flex flex-column align-items-center">
-    <router-link class="navbar-brand" to="/">
-      <img src="@/assets/price_ops_logo.svg" alt="Logo" class="logo" />
+  <nav class="sidebar">
+
+    <router-link
+      to="/"
+      class="logo-container"
+      title="Return to Home"
+    >
+      <img
+        :src="logo"
+        alt="CloudPricingOps"
+        class="logo"
+      />
+
+      <span class="logo-title">
+        CloudPricingOps
+      </span>
     </router-link>
+
   </nav>
 </template>
 

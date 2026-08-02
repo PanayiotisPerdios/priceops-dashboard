@@ -19,6 +19,24 @@ function templated(serviceLabel) {
   };
 }
 
+const PRICING_RANGES = {
+  Compute:    { retail_price: [0.02, 5],    unit_price: [0.02, 5] },
+  Storage:    { retail_price: [0.005, 0.15], unit_price: [0.005, 0.15] },
+  Database:   { retail_price: [0.05, 8],    unit_price: [0.05, 8] },
+  Networking: { retail_price: [0.01, 0.3],  unit_price: [0.01, 0.3] },
+  Kubernetes: { retail_price: [0.05, 2],    unit_price: [0.05, 2] },
+  Serverless: { retail_price: [0.05, 5],    unit_price: [0.05, 5] },
+};
+
+function pricing(service) {
+  const r = PRICING_RANGES[service];
+  if (!r) return {};
+  return {
+    retail_price: { name: "Retail Price (per unit)", direction: "lower", range: r.retail_price, category: "Cost" },
+    unit_price:   { name: "Unit Price (effective)",  direction: "lower", range: r.unit_price,   category: "Cost" },
+  };
+}
+
 const SERVICE_SPECIFIC = {
   Compute: {
     avg_monthly_cost:  { name: "Avg Monthly Cost",  direction: "lower",  range: [500, 6000],  category: "Cost" },
@@ -74,6 +92,7 @@ export function getMetricsForService(service) {
   return {
     ...COMMON,
     ...templated(service),
+    ...pricing(service),
     ...(SERVICE_SPECIFIC[service] || {}),
   };
 }
@@ -82,4 +101,4 @@ export function getAllServiceMetrics(services) {
   const out = {};
   services.forEach(s => { out[s] = getMetricsForService(s); });
   return out;
-}
+} 

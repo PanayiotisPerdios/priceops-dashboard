@@ -1,21 +1,81 @@
-.navbar-custom {
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+
   width: 90px;
-  background: linear-gradient(180deg, rgb(20, 20, 28), rgb(12, 12, 16));
-  backdrop-filter: blur(10px);
-  border-right: 1px solid rgba(255, 255, 255, 0.06);
-  box-shadow:
-    inset 1px 0 0 rgba(255, 255, 255, 0.05),
-    2px 0 25px rgba(0, 0, 0, 0.6);
-  z-index: 2000;
+  height: 100vh;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
   padding-top: 1.5rem;
+
+  background: linear-gradient(
+    180deg,
+    #11141a,
+    #090b10
+  );
+
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+
+  box-shadow:
+    inset 1px 0 rgba(255, 255, 255, 0.04),
+    4px 0 30px rgba(0, 0, 0, 0.45);
+
+  z-index: 2000;
+}
+
+.logo-container {
+  width: 64px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+
+  text-decoration: none;
+  color: inherit;
+
+  transition: transform .25s ease;
+}
+
+.logo-container::after {
+  content: "";
+
+  width: 42px;
+  height: 1px;
+
+  background: rgba(255,255,255,.08);
+
+  margin-top: .7rem;
 }
 
 .logo {
-  height: 60px;
-  width: auto;
-  transition: transform 0.25s ease;
+  width: 58px;
+  height: 58px;
+
+  transition:
+    transform .25s ease,
+    filter .25s ease;
 }
 
-.logo:hover {
+.logo-container:hover .logo {
   transform: scale(1.08);
+  filter: drop-shadow(0 0 12px rgba(99,102,241,.55));
+}
+
+.logo-title {
+  font-size: .68rem;
+  line-height: 1.2;
+  text-align: center;
+
+  color: #9ca3af;
+
+  transition: color .25s ease;
+}
+
+.logo-container:hover .logo-title {
+  color: #f3f4f6;
 }

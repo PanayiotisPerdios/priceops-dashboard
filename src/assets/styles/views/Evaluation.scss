@@ -1,0 +1,241 @@
+.table{
+  --bs-table-border-color: transparent;
+}
+.table tbody tr {
+  background: #111827;
+  transition: 0.2s ease;
+}
+.table tbody td {
+  color: white;
+}
+.table tbody td:hover {
+  background: rgba(184, 190, 181, 0.121);
+}
+.table th {
+  color: #6366f1;
+}
+
+.evaluation-container {
+  width: 100%;
+  height: 100%;
+  padding: 1.5rem;
+  border-radius: 16px;
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+  transition: 0.25s ease;
+}
+
+.evaluation-container:hover {
+  transform: translateY(-4px);
+  border-color: rgba(99, 102, 241, 0.45);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+
+.evaluation-table-wrap {
+  border-radius: 12px;  
+  overflow: hidden;
+}
+
+.weight-panel {
+  padding: 1.25rem 1.5rem;
+  border-radius: 16px;
+  background: #11141a;
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+  transition: 0.25s ease;
+}
+
+
+.weight-panel:hover {
+  transform: translateY(-4px);
+  border-color: rgba(99, 102, 241, 0.45);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+
+
+.weight-panel-title {
+  color: #9ca3af;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.weight-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.6rem;
+}
+
+.weight-label {
+  width: 140px;
+  color: #e5e7ea;
+  flex-shrink: 0;
+}
+
+.weight-value {
+  width: 48px;
+  text-align: right;
+  color: #6366f1;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.rank-row {
+  cursor: pointer;
+}
+.rank-row:hover {
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.breakdown-row td {
+  background: rgba(17, 20, 26, 0.6) !important;
+  padding: 1rem 1.5rem;
+}
+
+.breakdown-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.breakdown-bar-item,
+.breakdown-grid-bar-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.breakdown-bar-label {
+  width: 130px;
+  flex-shrink: 0;
+  color: #9ca3af;
+  font-size: 0.85rem;
+}
+
+.breakdown-bar-value {
+  width: 48px;
+  text-align: right;
+  flex-shrink: 0;
+  color: #9ca3af;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.progress {
+  flex: 1;
+  height: 10px;
+  background: #1a1e27;
+}
+
+.progress-bar {
+  background: #6366f1;
+}
+
+.quadrant-container {
+  padding: 1.5rem;
+  border-radius: 16px;
+  background: #11141a;
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+  transition: 0.25s ease;
+}
+
+.quadrant-container:hover {
+  transform: translateY(-4px);
+  border-color: rgba(99, 102, 241, 0.45);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+
+.quadrant-chart-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.quadrant-svg {
+  width: 100%;
+  max-width: 480px;
+  height: auto;
+}
+
+.quadrant-gridline {
+  stroke: #2a2f3a;
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+}
+
+.quadrant-border {
+  fill: none;
+  stroke: #2a2f3a;
+  stroke-width: 1;
+}
+
+.quadrant-axis-label {
+  fill: #6b7280;
+  font-size: 10px;
+}
+
+.quadrant-point-label {
+  fill: #e5e7ea;
+  font-size: 11px;
+}
+
+.pareto-point {
+  stroke: #ffffff;
+  stroke-width: 2;
+}
+
+.quadrant-legend {
+  max-width: 480px;
+  text-align: center;
+}
+
+.breakdown-grid {
+  padding: 1.5rem;
+  border-radius: 16px;
+  background: #11141a;
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+  transition: 0.25s ease;
+}
+
+.breakdown-grid:hover {
+  transform: translateY(-4px);
+  border-color: rgba(99, 102, 241, 0.45);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+
+.breakdown-grid-label {
+  color: #9ca3af;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.breakdown-grid-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.breakdown-grid-name {
+  width: 110px;
+  flex-shrink: 0;
+  color: #e5e7ea;
+  font-size: 0.85rem;
+}
+
+.breakdown-grid-value {
+  width: 48px;
+  text-align: right;
+  flex-shrink: 0;
+  color: #9ca3af;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
