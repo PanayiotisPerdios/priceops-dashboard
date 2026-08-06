@@ -6,7 +6,7 @@ import '@vuepic/vue-datepicker/dist/main.css'
 import MetricChart from '@/components/MetricChart.vue'
 import { useDomainServiceFilter } from '@/composables/useDomainServiceFilter';
 
-import {
+/*import {
   providers,
   domains,
   regions,
@@ -17,7 +17,7 @@ import {
   tenancyOptions,
   instanceTypesByProvider
 } from '@/data/filters'
-
+*/
 
 import { getMetricsForService } from '@/data/metricRegistry';
 

@@ -28,3 +28,26 @@
   flex: 1;
   min-height: 0;
 }
+
+.chart-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+
+.chart-toggles {
+  font-size: 0.85rem;
+  color: #9ca3af;
+}
+
+.chart-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+
+  input[type="checkbox"] {
+    accent-color: #6366f1;
+  }
+}

@@ -1,5 +1,5 @@
 import { ref, computed, watch } from 'vue';
-import { services, domainServiceMap } from '@/data/filters';
+//import { services, domainServiceMap } from '@/data/filters';
 
 export function useDomainServiceFilter() {
   const domain = ref(null);

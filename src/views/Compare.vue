@@ -29,6 +29,9 @@ import {
   getScore,
   getDynamicRange,
   getBilling,
+  getPriceValue,
+  getPriceDelta,
+  getPriceWinner,
   kpiCardColor
 } from '@/utils/calculationServices'
 
@@ -85,7 +88,7 @@ function setMode(mode) {
 const instanceTypeOptions = computed(() => {
   if (compareMode.value !== 'providers' || !service.value) return [];
   const all = providers
-    .map(p => providerMockData?.[p]?.[service.value]?.instance_type)
+    .map(p => activeDataset.value?.[p]?.[service.value]?.instance_type)
     .filter(Boolean);
   return [...new Set(all)];
 });
@@ -170,6 +173,18 @@ function winnerFor(field) {
 function billingFor(entity) {
   if (!entity || !service.value) return null;
   return getBilling(activeDataset.value, entity, service.value);
+}
+
+function priceFor(entity) {
+  return getPriceValue(activeDataset.value, entity, service.value);
+}
+
+function priceDeltaPct() {
+  return getPriceDelta(activeDataset.value, entity1.value, entity2.value, service.value);
+}
+
+function priceWinner() {
+  return getPriceWinner(activeDataset.value, entity1.value, entity2.value, service.value);
 }
 
 function buildExportRows() {
@@ -326,6 +341,8 @@ function downloadFile(content, filename, mimeType) {
 
   <div class="comparison-container">
     <div class="comparison-kpi-container">
+
+
       <div class="comparison-kpi-card">
         <div class="data-ex-form-cont">
           <label class="form-label text-white">{{ entityLabel }}</label>
@@ -338,10 +355,15 @@ function downloadFile(content, filename, mimeType) {
             No {{ entityLabel.toLowerCase() }} matches the current filters.
           </div>
  
-          <div v-if="entity1 && service && billingFor(entity1)" class="billing-info mt-2 small text-white-50">
-            {{ billingFor(entity1).skuName }} · {{ billingFor(entity1).unitOfMeasure }} · {{ billingFor(entity1).currencyCode }}
+          <div v-if="entity1 && service && billingFor(entity1)" class="price-highlight-box mt-2">
+            <div class="price-highlight-label">Effective Price</div>
+            <div class="price-highlight-value">
+              {{ priceFor(entity1) }}
+              <span class="price-unit">{{ billingFor(entity1).currencyCode }} / {{ billingFor(entity1).unitOfMeasure }}</span>
+            </div>
+            <div class="price-highlight-sku">{{ billingFor(entity1).skuName }}</div>
           </div>
- 
+
           <div v-if="entity1 && entity2 && service && metric" class="mt-3">
             <div v-for="field in activeComparisonColumns" :key="field.id" class="kpi-score-row">
               <strong>{{ field.name }}</strong>
@@ -350,6 +372,7 @@ function downloadFile(content, filename, mimeType) {
               </div>
             </div>
           </div>
+          
  
         </div>
       </div>
@@ -364,8 +387,13 @@ function downloadFile(content, filename, mimeType) {
             No {{ entityLabel.toLowerCase() }} matches the current filters.
           </div>
  
-          <div v-if="entity2 && service && billingFor(entity2)" class="billing-info mt-2 small text-white-50">
-            {{ billingFor(entity2).skuName }} · {{ billingFor(entity2).unitOfMeasure }} · {{ billingFor(entity2).currencyCode }}
+          <div v-if="entity2 && service && billingFor(entity2)" class="price-highlight-box mt-2">
+            <div class="price-highlight-label">Effective Price</div>
+            <div class="price-highlight-value">
+              {{ priceFor(entity2) }}
+              <span class="price-unit">{{ billingFor(entity2).currencyCode }} / {{ billingFor(entity2).unitOfMeasure }}</span>
+            </div>
+            <div class="price-highlight-sku">{{ billingFor(entity2).skuName }}</div>
           </div>
  
       <div v-if="entity1 && entity2 && service && metric" class="mt-3">
@@ -393,32 +421,45 @@ function downloadFile(content, filename, mimeType) {
     </div>  
     </div>
 
-    <div v-if="entity1 && entity2 && service && metric" class="table-responsive comparison-table-container">
-    <table class="comparison-table table">
-      <thead>
-        <tr>
-          <th>Metric</th>
-          <th>{{ entity1 }}</th>
-          <th>{{ entity2 }}</th>
-          <th>Delta</th>
-          <th>Winner</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="field in activeComparisonColumns" :key="field.id">
-          <td>{{ field.name }}</td>
-          <td>{{ valueFor(entity1, field) }}</td>
-          <td>{{ valueFor(entity2, field) }}</td>
-          <td :class="Number(deltaFor(field)) < 0 ? 'negative-delta' : 'positive-delta'">{{ deltaFor(field) }}</td>
-          <td>
-            <span class="winner-badge" :class="winnerFor(field) === entity1 ? 'positive-badge' : 'negative-badge'">
-              {{ winnerFor(field) }}
-            </span>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
+    <div v-if="entity1 && entity2 && service && metric" class="comparison-results">
+
+      <div class="table-responsive comparison-table-container">
+        <table class="comparison-table table">
+          <thead>
+            <tr>
+              <th>Metric</th>
+              <th>{{ entity1 }}</th>
+              <th>{{ entity2 }}</th>
+              <th>Delta</th>
+              <th>Winner</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="field in activeComparisonColumns" :key="field.id">
+              <td>{{ field.name }}</td>
+              <td>{{ valueFor(entity1, field) }}</td>
+              <td>{{ valueFor(entity2, field) }}</td>
+              <td :class="Number(deltaFor(field)) < 0 ? 'negative-delta' : 'positive-delta'">{{ deltaFor(field) }}</td>
+              <td>
+                <span class="winner-badge" :class="winnerFor(field) === entity1 ? 'positive-badge' : 'negative-badge'">
+                  {{ winnerFor(field) }}
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div v-if="entity1 && entity2 && service && priceDeltaPct() !== null" class="price-delta-strip">
+          <span>{{ entity1 }}: {{ priceFor(entity1) }} {{ billingFor(entity1)?.currencyCode }} / {{ billingFor(entity1)?.unitOfMeasure }}</span>
+          <span class="price-delta-vs">vs</span>
+          <span>{{ entity2 }}: {{ priceFor(entity2) }} {{ billingFor(entity2)?.currencyCode }} / {{ billingFor(entity2)?.unitOfMeasure }}</span>
+          <div class="price-delta-summary" :class="Number(priceDeltaPct()) < 0 ? 'positive-delta' : 'negative-delta'">
+            {{ Number(priceDeltaPct()) > 0 ? '+' : '' }}{{ priceDeltaPct() }}%
+            {{ Number(priceDeltaPct()) > 0 ? `(${entity1} pricier)` : `(${entity2} pricier)` }}
+          </div>
+      </div>
+    </div>
 </div>
 </template>
 

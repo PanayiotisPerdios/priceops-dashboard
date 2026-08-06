@@ -67,6 +67,28 @@ export const getBilling = (providerMockData, provider, service) => {
   return providerMockData?.[provider]?.[service]?.Billing ?? null
 }
  
+export const getPriceValue = (providerMockData, provider, service) => {
+  return getProviderValue(providerMockData, provider, service, 'Cost', 'unit_price')
+}
+
+export const getRetailPriceValue = (providerMockData, provider, service) => {
+  return getProviderValue(providerMockData, provider, service, 'Cost', 'retail_price')
+}
+
+export const getPriceDelta = (providerMockData, provider1, provider2, service) => {
+  const p1 = getPriceValue(providerMockData, provider1, service)
+  const p2 = getPriceValue(providerMockData, provider2, service)
+  if (p1 == null || p2 == null || !p2) return null
+  return (((p1 - p2) / p2) * 100).toFixed(1)
+}
+
+export const getPriceWinner = (providerMockData, provider1, provider2, service) => {
+  const p1 = getPriceValue(providerMockData, provider1, service)
+  const p2 = getPriceValue(providerMockData, provider2, service)
+  if (p1 == null || p2 == null) return '-'
+  return p1 < p2 ? provider1 : provider2
+}
+
 export const kpiCardColor = (label) => {
   if (['VERY LOW SCORE', 'LOW SCORE'].includes(label)) return 'negative-kpi'
   if (['VERY HIGH SCORE', 'HIGH SCORE'].includes(label)) return 'positive-kpi'
