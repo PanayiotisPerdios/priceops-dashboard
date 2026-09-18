@@ -1,6 +1,7 @@
 <script setup>
 import Card from '@/components/Card.vue'
-import { providers, services, regions } from '@/data/filters'
+import { providers, domains } from '@/data/filters'
+import { pricingRecords } from '@/data/mockPricingData'
 
 const cards = [
   { title: 'Explore Data', message: 'See instance pricing and metrics across providers.', reference: 'explore' },
@@ -9,6 +10,7 @@ const cards = [
 ]
 
 const providerList = providers.join(' · ')
+const regionCount = new Set(pricingRecords.map(r => r.region)).size
 </script>
 
 <template>
@@ -32,10 +34,9 @@ const providerList = providers.join(' · ')
     <div class="hero-stats">
       <span>{{ providers.length }} providers</span>
       <span class="hero-stats-divider">·</span>
-      <span>{{ services.length }} services</span>
+      <span>{{ domains.length }} domains</span>
       <span class="hero-stats-divider">·</span>
-      <span>{{ regions.length }} regions</span>
-      <span class="hero-stats-divider">·</span>
+      <span>{{ regionCount }} regions</span>
     </div>
   </section>
 

@@ -1,6 +1,7 @@
 import { ref, computed } from 'vue';
+/*
 import { getMetricsForService } from '@/data/metricRegistry';
-
+*/
 function expandCategoryWeights(categoryWeights, fields) {
   const byCategory = {};
   for (const [fieldId, def] of Object.entries(fields)) {

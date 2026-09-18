@@ -1,7 +1,7 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import {
-  Chart as ChartJS, Title, Tooltip, Legend, Filler,
+  Chart as ChartJS, Title, Tooltip, Legend,
   LineElement, BarElement, PointElement, ArcElement,
   CategoryScale, LinearScale, RadialLinearScale,
   LineController, BarController, PieController, RadarController, ScatterController
@@ -9,7 +9,7 @@ import {
 import { Line, Bar, Pie, Radar, Scatter } from 'vue-chartjs'
 
 ChartJS.register(
-  Title, Tooltip, Legend, Filler,
+  Title, Tooltip, Legend,
   LineElement, BarElement, PointElement, ArcElement,
   CategoryScale, LinearScale, RadialLinearScale,
   LineController, BarController, PieController, RadarController, ScatterController
@@ -36,190 +36,232 @@ const crosshairPlugin = {
 ChartJS.register(crosshairPlugin);
 
 const props = defineProps({
-  entities: { type: Array, required: true },
+  // Records to visualize: [{ id, name, color, ...numeric fields }]
+  records: { type: Array, required: true },
+  // Plottable numeric fields: [{ id: 'effective_price_hr', name: 'Price / hr' }, ...]
   columns: { type: Array, default: () => [] },
-  dataMap: { type: Object, required: true },
-  service: { type: String, default: null },
-  granularity: { type: String, default: 'daily' },
-  granularityLabels: { type: Object, required: true },
 });
 
-const visualizationType = ref('Line');
-const subfieldType = ref(null);
+const emit = defineEmits(['select']);
+
+const visualizationType = ref('Bar');
+const subfieldType = ref(props.columns[0]?.id ?? null);
+const xField = ref(props.columns[0]?.id ?? null);
+const yField = ref(props.columns[1]?.id ?? props.columns[0]?.id ?? null);
+const sortDir = ref('asc'); // 'asc' | 'desc' | 'name'
 const showExtremes = ref(true);
 const showAverage = ref(false);
-const showGapFill = ref(true);
+const selectedId = ref(null);
 const chartRef = ref(null);
 
-const CHART_TYPES = ['Line', 'Area', 'Bar', 'Scatter', 'Radar', 'Pie'];
+const CHART_TYPES = ['Bar', 'Line', 'Pie', 'Radar', 'Scatter'];
+const isCartesian = computed(() => visualizationType.value === 'Bar');
+const isMultiMetric = computed(() => ['Line', 'Radar'].includes(visualizationType.value));
 
 const chartComponent = computed(() => {
   switch (visualizationType.value) {
-    case 'Bar': return Bar;
+    case 'Line': return Line;
     case 'Pie': return Pie;
     case 'Radar': return Radar;
     case 'Scatter': return Scatter;
-    case 'Line':
-    case 'Area':
-    default: return Line;
+    case 'Bar':
+    default: return Bar;
   }
 });
 
-const isTimeSeries = computed(() =>
-  ['Line', 'Area', 'Bar', 'Scatter'].includes(visualizationType.value)
-);
+const PALETTE = ['#4ade80', '#1e44b9', '#ca309e', '#f59e0b', '#6366f1', '#f97316'];
+const HIGHLIGHT = '#fbbf24';
 
-const PIE_COLORS = ['#4ade80', '#1e44b9', '#ca309e', '#f59e0b', '#6366f1', '#f97316'];
+function colorFor(index) {
+  return props.records[index]?.color || PALETTE[index % PALETTE.length];
+}
 
-function buildPieDataset() {
-  if (props.entities.length > 1) {
-    const values = props.entities.map((entity) => {
-      const arr = seriesFor(entity);
-      return arr.length ? arr[arr.length - 1] : 0;
+function valueFor(record, fieldId) {
+  return record?.[fieldId] ?? null;
+}
+
+function fieldName(fieldId) {
+  return props.columns.find(c => c.id === fieldId)?.name ?? fieldId;
+}
+
+// Bar/Line share a sortable view of the records so "trend" charts read meaningfully
+const sortedRecords = computed(() => {
+  const arr = [...props.records];
+  if (sortDir.value === 'name') {
+    return arr.sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''));
+  }
+  return arr.sort((a, b) => {
+    const av = valueFor(a, subfieldType.value) ?? 0;
+    const bv = valueFor(b, subfieldType.value) ?? 0;
+    return sortDir.value === 'asc' ? av - bv : bv - av;
+  });
+});
+
+function extremesOf(values) {
+  const valid = values.map((v, i) => [v, i]).filter(([v]) => v != null);
+  if (!valid.length) return { min: -1, max: -1 };
+  let min = valid[0], max = valid[0];
+  for (const pair of valid) {
+    if (pair[0] < min[0]) min = pair;
+    if (pair[0] > max[0]) max = pair;
+  }
+  return { min: min[1], max: max[1] };
+}
+
+function buildBarDataset() {
+  const recs = sortedRecords.value;
+  const values = recs.map(r => valueFor(r, subfieldType.value));
+  const { min, max } = extremesOf(values);
+  const validValues = values.filter(v => v != null);
+  const avg = validValues.length ? validValues.reduce((a, b) => a + b, 0) / validValues.length : 0;
+
+  const datasets = [{
+    label: fieldName(subfieldType.value),
+    data: values,
+    backgroundColor: recs.map((r, i) =>
+      r.id === selectedId.value ? '#ffffff' : (showExtremes.value && (i === min || i === max)) ? HIGHLIGHT : colorFor(props.records.indexOf(r))
+    ),
+    order: 1,
+  }];
+
+  if (showAverage.value) {
+    datasets.push({
+      type: 'line',
+      label: 'Average',
+      data: recs.map(() => avg),
+      borderColor: 'rgba(255,255,255,0.6)',
+      borderDash: [6, 4],
+      borderWidth: 1,
+      pointRadius: 0,
+      fill: false,
+      order: 0,
     });
-    return {
-      labels: props.entities.map((e) => e.label),
-      datasets: [{
-        data: values,
-        backgroundColor: props.entities.map((e) => e.color),
-      }],
-    };
   }
 
-  const entity = props.entities[0];
-  const labels = props.granularityLabels[props.granularity] || [];
+  return { labels: recs.map(r => r.name ?? r.id), datasets };
+}
+
+// Multi-metric profile per record — same normalization Radar uses, so the shared
+// x-axis (fields) is comparable across units. Legend = record/provider name.
+function buildLineDataset() {
+  const ranges = {};
+  props.columns.forEach(field => {
+    const vals = props.records.map(r => valueFor(r, field.id)).filter(v => v != null);
+    ranges[field.id] = vals.length ? { min: Math.min(...vals), max: Math.max(...vals) } : null;
+  });
+  function normalize(fieldId, value) {
+    const range = ranges[fieldId];
+    if (value == null || !range) return null;
+    if (range.max === range.min) return 100;
+    return ((value - range.min) / (range.max - range.min)) * 100;
+  }
+
   return {
-    labels,
+    labels: props.columns.map(f => f.name),
+    datasets: props.records.map((record, i) => ({
+      label: record.name ?? record.id,
+      data: props.columns.map(field => normalize(field.id, valueFor(record, field.id))),
+      borderColor: record.id === selectedId.value ? '#ffffff' : colorFor(i),
+      backgroundColor: (record.id === selectedId.value ? '#ffffff' : colorFor(i)) + '33',
+      borderWidth: record.id === selectedId.value ? 3 : 2,
+      pointRadius: 4,
+      tension: 0.25,
+      fill: false,
+    })),
+  };
+}
+
+function buildPieDataset() {
+  return {
+    labels: props.records.map(r => r.name ?? r.id),
     datasets: [{
-      label: entity?.label || 'Metric',
-      data: seriesFor(entity),
-      backgroundColor: PIE_COLORS,
+      label: fieldName(subfieldType.value),
+      data: props.records.map(r => valueFor(r, subfieldType.value)),
+      backgroundColor: props.records.map((r, i) => r.id === selectedId.value ? '#ffffff' : colorFor(i)),
     }],
   };
 }
 
-
-function seriesFor(entity) {
-  return props.dataMap?.[entity.id]?.[props.service]?.[subfieldType.value] || [];
-}
-
-function extremesOf(arr) {
-  if (!arr.length) return { min: -1, max: -1 };
-  let minI = 0, maxI = 0;
-  arr.forEach((v, i) => {
-    if (v < arr[minI]) minI = i;
-    if (v > arr[maxI]) maxI = i;
-  });
-  return { min: minI, max: maxI };
-}
-
-function buildTimeSeriesDatasets() {
-  const labels = props.granularityLabels[props.granularity] || [];
-  const isArea = visualizationType.value === 'Area';
-
-  const mainDatasets = props.entities.map((entity) => {
-    const data = seriesFor(entity);
-    const { min, max } = extremesOf(data);
-    const isScatter = visualizationType.value === 'Scatter';
-
-    return {
-      label: entity.label,
-      data,
-      borderColor: entity.color,
-      backgroundColor: isArea ? entity.color + '33' : entity.color + '24',
-      fill: isArea,
-      showLine: !isScatter,
-      tension: 0.35,
-      _isMain: true,
-      pointRadius: (ctx) => {
-        const base = isScatter ? 5 : 3;
-        const extremeSize = isScatter ? 8 : 6;
-        return showExtremes.value && (ctx.dataIndex === min || ctx.dataIndex === max) ? extremeSize : base;
-      },
-      pointBackgroundColor: (ctx) => showExtremes.value && (ctx.dataIndex === min || ctx.dataIndex === max) ? '#fbbf24' : entity.color,
-      pointBorderColor: (ctx) => showExtremes.value && (ctx.dataIndex === min || ctx.dataIndex === max) ? '#fbbf24' : entity.color,
-    };
-  });
-
-  if (showGapFill.value && props.entities.length === 2 && (visualizationType.value === 'Line' || visualizationType.value === 'Area')) {
-    mainDatasets[1] = { ...mainDatasets[1], fill: '-1', backgroundColor: 'rgba(255,255,255,0.06)' };
-  }
-
-  const avgDatasets = showAverage.value
-    ? props.entities.map((entity) => {
-        const data = seriesFor(entity);
-        const avg = data.length ? data.reduce((a, b) => a + b, 0) / data.length : 0;
-        return {
-          label: `${entity.label} avg`,
-          data: labels.map(() => avg),
-          borderColor: entity.color,
-          borderDash: [6, 4],
-          borderWidth: 1,
-          pointRadius: 0,
-          fill: false,
-          _isMain: false,
-        };
-      })
-    : [];
-
-  return { labels, datasets: [...mainDatasets, ...avgDatasets] };
+function buildScatterDataset() {
+  return {
+    datasets: [{
+      label: `${fieldName(xField.value)} vs ${fieldName(yField.value)}`,
+      data: props.records
+        .map((r, i) => ({ x: valueFor(r, xField.value), y: valueFor(r, yField.value), _label: r.name ?? r.id, _id: r.id }))
+        .filter(p => p.x != null && p.y != null),
+      backgroundColor: props.records.map((r, i) => r.id === selectedId.value ? '#ffffff' : colorFor(i)),
+      pointRadius: (ctx) => ctx.raw?._id === selectedId.value ? 9 : 6,
+    }],
+  };
 }
 
 function buildRadarDataset() {
-  const latestByEntityAndField = {};
-  props.entities.forEach((entity) => {
-    latestByEntityAndField[entity.id] = {};
-    props.columns.forEach((field) => {
-      const arr = props.dataMap?.[entity.id]?.[props.service]?.[field.id] || [];
-      latestByEntityAndField[entity.id][field.id] = arr.length ? arr[arr.length - 1] : null;
-    });
-  });
-
   const ranges = {};
-  props.columns.forEach((field) => {
-    const vals = props.entities
-      .map((e) => latestByEntityAndField[e.id][field.id])
-      .filter((v) => v != null);
-    ranges[field.id] = { min: Math.min(...vals), max: Math.max(...vals) };
+  props.columns.forEach(field => {
+    const vals = props.records.map(r => valueFor(r, field.id)).filter(v => v != null);
+    ranges[field.id] = vals.length ? { min: Math.min(...vals), max: Math.max(...vals) } : null;
   });
-
-  function normalize(field, value) {
-    if (value == null) return 0;
-    const { min, max } = ranges[field.id];
-    if (max === min) return 100;
-    return ((value - min) / (max - min)) * 100;
+  function normalize(fieldId, value) {
+    const range = ranges[fieldId];
+    if (value == null || !range) return 0;
+    if (range.max === range.min) return 100;
+    return ((value - range.min) / (range.max - range.min)) * 100;
   }
-
   return {
-    labels: props.columns.map((f) => f.name),
-    datasets: props.entities.map((entity) => ({
-      label: entity.label,
-      data: props.columns.map((field) => normalize(field, latestByEntityAndField[entity.id][field.id])),
-      borderColor: entity.color,
-      backgroundColor: entity.color + '2a',
-      pointBackgroundColor: entity.color,
-      _isMain: true,
+    labels: props.columns.map(f => f.name),
+    datasets: props.records.map((record, i) => ({
+      label: record.name ?? record.id,
+      data: props.columns.map(field => normalize(field.id, valueFor(record, field.id))),
+      borderColor: record.id === selectedId.value ? '#ffffff' : colorFor(i),
+      backgroundColor: (record.id === selectedId.value ? '#ffffff' : colorFor(i)) + '2a',
+      pointBackgroundColor: record.id === selectedId.value ? '#ffffff' : colorFor(i),
+      borderWidth: record.id === selectedId.value ? 3 : 1.5,
     })),
   };
 }
 
 const chartData = computed(() => {
   if (visualizationType.value === 'Radar') return buildRadarDataset();
+  if (visualizationType.value === 'Line') return buildLineDataset();
   if (visualizationType.value === 'Pie') return buildPieDataset();
-
-  return buildTimeSeriesDatasets();
+  if (visualizationType.value === 'Scatter') return buildScatterDataset();
+  return buildBarDataset();
 });
 
+function handleChartClick(event, elements) {
+  if (!elements?.length) return;
+  const el = elements[0];
+  let record = null;
+  if (visualizationType.value === 'Scatter') {
+    const point = chartData.value.datasets[el.datasetIndex]?.data[el.index];
+    record = props.records.find(r => r.id === point?._id);
+  } else if (visualizationType.value === 'Bar') {
+    record = sortedRecords.value[el.index];
+  } else if (visualizationType.value === 'Pie') {
+    record = props.records[el.index];
+  } else if (visualizationType.value === 'Line' || visualizationType.value === 'Radar') {
+    record = props.records[el.datasetIndex];
+  }
+  if (!record) return;
+  selectedId.value = selectedId.value === record.id ? null : record.id;
+  emit('select', selectedId.value ? record : null);
+}
 
 const chartOptions = computed(() => {
   const isRadar = visualizationType.value === 'Radar';
   const isPie = visualizationType.value === 'Pie';
   const isScatter = visualizationType.value === 'Scatter';
+  const isLine = visualizationType.value === 'Line';
 
   return {
     responsive: true,
     maintainAspectRatio: false,
-    interaction: isRadar || isPie ? {} : { mode: 'index', intersect: false },
+    onClick: handleChartClick,
+    interaction: isRadar || isPie
+      ? {}
+      : isScatter
+      ? { mode: 'nearest', intersect: true }
+      : { mode: 'index', intersect: false },
     plugins: {
       legend: {
         labels: { color: 'white' },
@@ -238,19 +280,18 @@ const chartOptions = computed(() => {
       tooltip: {
         callbacks: {
           label(context) {
-            if (visualizationType.value !== 'Pie') return undefined; // fall back to Chart.js default
-            const total = context.dataset.data.reduce((a, b) => a + b, 0);
-            const pct = total ? ((context.parsed / total) * 100).toFixed(1) : '0.0';
-            return `${context.label}: ${context.parsed} (${pct}%)`;
-          },
-
-          footer(items) {
-            const mainItems = items.filter((i) => i.dataset._isMain);
-            if (mainItems.length !== 2) return '';
-            const [a, b] = mainItems;
-            const diff = a.parsed.y - b.parsed.y;
-            const pct = b.parsed.y ? ((diff / b.parsed.y) * 100).toFixed(1) : '—';
-            return `Δ ${diff.toFixed(2)} (${pct}%)`;
+            if (isPie) {
+              const total = context.dataset.data.reduce((a, b) => a + b, 0);
+              const pct = total ? ((context.parsed / total) * 100).toFixed(1) : '0.0';
+              return `${context.label}: ${context.parsed} (${pct}%)`;
+            }
+            if (isScatter) {
+              return `${context.raw._label}: (${context.raw.x}, ${context.raw.y})`;
+            }
+            if (isLine) {
+              return `${context.dataset.label}: ${context.parsed.y?.toFixed(1)}%`;
+            }
+            return undefined;
           },
         },
       },
@@ -258,20 +299,24 @@ const chartOptions = computed(() => {
     scales: isPie
       ? {}
       : isRadar
-      ? { r: {
-          angleLines: { color: 'rgba(255,255,255,0.12)' },
-          grid: { color: 'rgba(255,255,255,0.12)' },
-          pointLabels: { color: '#e5e7ea' },
-          ticks: { display: false, backdropColor: 'transparent' },
-          } 
+      ? {
+          r: {
+            angleLines: { color: 'rgba(255,255,255,0.12)' },
+            grid: { color: 'rgba(255,255,255,0.12)' },
+            pointLabels: { color: '#e5e7ea' },
+            ticks: { display: false, backdropColor: 'transparent' },
+          },
         }
-      : { x: {
-          type: isScatter ? 'category' : undefined,  
-          ticks: { color: 'white' } 
-          }, 
-          y: { 
-            ticks: { color: 'white' } 
-          } 
+      : {
+          x: {
+            type: isScatter ? 'linear' : 'category',
+            title: isScatter ? { display: true, text: fieldName(xField.value), color: 'white' } : undefined,
+            ticks: { color: 'white' },
+          },
+          y: {
+            title: isScatter ? { display: true, text: fieldName(yField.value), color: 'white' } : undefined,
+            ticks: { color: 'white' },
+          },
         },
   };
 });
@@ -281,11 +326,12 @@ function downloadChart() {
   if (!canvas?.toDataURL) return;
   const a = document.createElement('a');
   a.href = canvas.toDataURL('image/png');
-  a.download = `${props.service || 'chart'}-${subfieldType.value || visualizationType.value}.png`;
+  a.download = `${subfieldType.value || visualizationType.value}-chart.png`;
   a.click();
 }
 
-defineExpose({ subfieldType });
+// Reset selection when the underlying record set changes (e.g. filters change upstream)
+watch(() => props.records, () => { selectedId.value = null; });
 </script>
 
 <template>
@@ -295,45 +341,61 @@ defineExpose({ subfieldType });
         <select class="form-select custom-form-select" style="width: 110px" v-model="visualizationType">
           <option v-for="t in CHART_TYPES" :key="t">{{ t }}</option>
         </select>
+
+        <template v-if="visualizationType === 'Scatter'">
+          <select class="form-select custom-form-select" style="width: 160px" v-model="xField">
+            <option v-for="field in columns" :key="field.id" :value="field.id">X: {{ field.name }}</option>
+          </select>
+          <select class="form-select custom-form-select" style="width: 160px" v-model="yField">
+            <option v-for="field in columns" :key="field.id" :value="field.id">Y: {{ field.name }}</option>
+          </select>
+        </template>
+
         <select
-          v-if="service && visualizationType !== 'Radar'"
+          v-else-if="!isMultiMetric"
           class="form-select custom-form-select"
           style="width: 200px"
           v-model="subfieldType"
         >
-          <option :value="null" disabled selected>Select a metric</option>
+          <option :value="null" disabled>Select a metric</option>
           <option v-for="field in columns" :key="field.id" :value="field.id">{{ field.name }}</option>
         </select>
-      </div>
 
-      <div class="d-flex align-items-center gap-3 flex-wrap chart-toggles" v-if="isTimeSeries">
+        <select
+          v-if="isCartesian"
+          class="form-select custom-form-select"
+          style="width: 150px"
+          v-model="sortDir"
+        >
+          <option value="asc">Sort: Value ↑</option>
+          <option value="desc">Sort: Value ↓</option>
+          <option value="name">Sort: Name</option>
+        </select>
+      </div>
+      
+      <div class="d-flex align-items-center gap-3 flex-wrap chart-toggles" v-if="isCartesian">
         <label class="chart-toggle">
           <input type="checkbox" v-model="showExtremes" /> Highlight min/max
         </label>
         <label class="chart-toggle">
           <input type="checkbox" v-model="showAverage" /> Average line
         </label>
-        <label
-          class="chart-toggle"
-          v-if="entities.length === 2 && (visualizationType === 'Line' || visualizationType === 'Area')"
-        >
-          <input type="checkbox" v-model="showGapFill" /> Fill gap
-        </label>
-        <button
-          type="button"
-          class="btn btn-sm btn-outline-primary ms-auto"
-          :disabled="!subfieldType"
-          @click="downloadChart"
-        >
+        <button type="button" class="btn btn-sm btn-outline-primary ms-auto" @click="downloadChart">
           Download PNG
         </button>
       </div>
+      <button v-else type="button" class="btn btn-sm btn-outline-primary ms-auto" @click="downloadChart">
+        Download PNG
+      </button>
     </div>
 
-    <div v-if="visualizationType !== 'Radar' && !subfieldType" class="text-white text-center py-5">
-      Select a metric above to see the chart.
-    </div>
-    <component v-else ref="chartRef" :is="chartComponent" :data="chartData" :options="chartOptions" />
+    <div v-if="!records.length" class="text-white text-center py-5">No records to chart.</div>
+    <template v-else>
+      <component ref="chartRef" :is="chartComponent" :data="chartData" :options="chartOptions" />
+      <div v-if="selectedId" class="text-white-50 small mt-2">
+        Selected: {{ records.find(r => r.id === selectedId)?.name }} — click again to deselect.
+      </div>
+    </template>
   </div>
 </template>
 

@@ -1,465 +1,265 @@
 <script setup>
-import { ref, watch, computed, onMounted, onUnmounted } from 'vue';
-import { VueDatePicker } from '@vuepic/vue-datepicker'
-import '@vuepic/vue-datepicker/dist/main.css'
-
-import MetricChart from '@/components/MetricChart.vue'
-import { useDomainServiceFilter } from '@/composables/useDomainServiceFilter';
-
-import {
-  providers,
-  domains,
-  regions,
-  metrics,
-  services,
-  pricingModels,
-  operatingSystems,
-  tenancyOptions
-} from '@/data/filters'
-
-import { getMetricsForService } from '@/data/metricRegistry';
-
-import { scenarioNames } from '@/mock-data/scenarioMockData'
-import { useProviderDataSource, useScenarioDataSource } from '@/composables/useDataSource';
-
-import {
-  getProviderValue,
-  getDelta,
-  getWinner,
-  getScore,
-  getDynamicRange,
-  getBilling,
-  getPriceValue,
-  getPriceDelta,
-  getPriceWinner,
-  kpiCardColor
-} from '@/utils/calculationServices'
-
-
-const compareMode = ref('providers')
-
-const providerSource = useProviderDataSource();
-const scenarioSource = useScenarioDataSource();
-
-const entityOptions = computed(() => 
-  compareMode.value === 'providers' ? providers : scenarioNames
-);
-
-const activeDataset = computed(() => 
-  compareMode.value === 'providers' ? providerSource.dataset.value : scenarioSource.dataset.value
-);
-
-const activeMetricDataMap = computed(() => 
-  compareMode.value === 'providers' ? providerSource.metricDataMap.value : scenarioSource.metricDataMap.value
-);
-
-const activeGranularityLabels = computed(() => 
-  compareMode.value === 'providers' ? providerSource.granularityLabels.value : scenarioSource.granularityLabels.value
-);
-
-const entityLabel = computed(() => 
-  compareMode.value === 'providers' ? 'Provider' : 'Scenario'
-);
+import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { providers, domains } from '@/data/filters';
+import { pricingRecords } from '@/data/mockPricingData';
+import MetricChart from '@/components/MetricChart.vue';
 
 const isScrolled = ref(false);
+const handleScroll = () => { isScrolled.value = window.scrollY > 20; };
+onMounted(() => window.addEventListener('scroll', handleScroll));
+onUnmounted(() => window.removeEventListener('scroll', handleScroll));
 
+// Comparable fields — pulled directly from the frozen schema.
+// direction: 'higher' = bigger is better, 'lower' = smaller is better (price).
+const COMPARE_FIELDS = [
+  { id: 'vcpu_count', name: 'vCPU', direction: 'higher' },
+  { id: 'memory_gb', name: 'Memory (GB)', direction: 'higher' },
+  { id: 'effective_price_hr', name: 'Price / hr', direction: 'lower' },
+  { id: 'data_quality_score', name: 'Data Quality Score', direction: 'higher' },
+];
 
-const { domain, service, availableServices } = useDomainServiceFilter();
-
-const entity1 = ref(null);
-const entity2 = ref(null);
+// --- Filters ---------------------------------------------------------
+const domain = ref(null);
 const region = ref(null);
-const dateRange = ref(null);
-const granularity = ref('daily');
-const metric = ref(null);
-
-const pricingModel = ref(null);
 const operatingSystem = ref(null);
-const tenancy = ref(null);
-const instanceType = ref(null);
 
-function setMode(mode) {
-  compareMode.value = mode;
-  entity1.value = null;
-  entity2.value = null;
-  instanceType.value = null;
-}
+const filteredRecords = computed(() =>
+  pricingRecords.filter(r =>
+    (!domain.value || r.domain === domain.value) &&
+    (!region.value || r.region === region.value) &&
+    (!operatingSystem.value || r.operating_system === operatingSystem.value)
+  )
+);
 
-const instanceTypeOptions = computed(() => {
-  if (compareMode.value !== 'providers' || !service.value) return [];
-  const all = providers
-    .map(p => activeDataset.value?.[p]?.[service.value]?.instance_type)
-    .filter(Boolean);
-  return [...new Set(all)];
-});
-
-const attributeFilters = computed(() => ({
-  region: region.value,
-  pricing_model: pricingModel.value,
-  operating_system: operatingSystem.value,
-  tenancy: tenancy.value,
-  instance_type: compareMode.value === 'providers' ? instanceType.value : null,
-}));
- 
-function entityMatchesFilters(entityKey) {
-  if (!service.value) return true;
-  const record = activeDataset.value?.[entityKey]?.[service.value];
-  if (!record) return true;
-  return Object.entries(attributeFilters.value).every(([attr, val]) => {
-    if (!val) return true;
-    return record[attr] === val;
-  });
-}
-
-const filteredEntityOptions = computed(() => entityOptions.value.filter(entityMatchesFilters));
-
-watch([filteredEntityOptions, compareMode], () => {
-  if (entity1.value && !filteredEntityOptions.value.includes(entity1.value)) entity1.value = null;
-  if (entity2.value && !filteredEntityOptions.value.includes(entity2.value)) entity2.value = null;
-});
-
-const activeComparisonColumns = computed(() => {
-  if (!service.value) return [];
-
-  const allMetrics = getMetricsForService(service.value);
-
-  return Object.entries(allMetrics)
-    .filter(([, def]) => !metric.value || def.category === metric.value)
-    .map(([key, def]) => ({ id: key, ...def }));
-});
-
-const chartEntities = computed(() => [
-  { id: entity1.value, label: entity1.value || `${entityLabel.value} A`, color: '#1e44b9' },
-  { id: entity2.value, label: entity2.value || `${entityLabel.value} B`, color: '#ca309e' },
+const regionOptions = computed(() => [
+  ...new Set(
+    pricingRecords
+      .filter(r => !domain.value || r.domain === domain.value)
+      .map(r => r.region)
+  ),
 ]);
 
-const handleScroll = () => {
-  isScrolled.value = window.scrollY > 20;
-};
+const operatingSystemOptions = computed(() => [
+  ...new Set(pricingRecords.map(r => r.operating_system).filter(Boolean)),
+]);
 
-onMounted(() => {
-  window.addEventListener('scroll', handleScroll);
-});
+// --- Two records to compare -------------------------------------------
+const provider1 = ref(null);
+const provider2 = ref(null);
+const sku1 = ref(null);
+const sku2 = ref(null);
 
-onUnmounted(() => {
-  window.removeEventListener('scroll', handleScroll);
-});
+const skuOptions1 = computed(() => filteredRecords.value.filter(r => !provider1.value || r.provider === provider1.value));
+const skuOptions2 = computed(() => filteredRecords.value.filter(r => !provider2.value || r.provider === provider2.value));
 
-function rangeEntityKeys() {
-  const keys = new Set(filteredEntityOptions.value);
-  if (entity1.value) keys.add(entity1.value);
-  if (entity2.value) keys.add(entity2.value);
-  return [...keys];
+const record1 = computed(() => filteredRecords.value.find(r => r.id === sku1.value) || null);
+const record2 = computed(() => filteredRecords.value.find(r => r.id === sku2.value) || null);
+
+const CHART_COLUMNS = [
+  { id: 'vcpu_count', name: 'vCPU' },
+  { id: 'memory_gb', name: 'Memory (GB)' },
+  { id: 'effective_price_hr', name: 'Price / hr' },
+  { id: 'data_quality_score', name: 'Data Quality Score' },
+];
+
+const providerColors = { AWS: '#f0932b', Azure: '#0078d4', GCP: '#4285f4' };
+function colorFor(provider) { return providerColors[provider] ?? '#6366f1'; }
+
+const chartRecords = computed(() =>
+  [record1.value, record2.value].filter(Boolean).map(r => ({
+    id: r.id,
+    name: r.skuName,
+    color: colorFor(r.provider),
+    vcpu_count: r.vcpu_count,
+    memory_gb: r.memory_gb,
+    effective_price_hr: r.effective_price_hr,
+    data_quality_score: r.data_quality_score,
+  }))
+);
+
+function resetSelection() { sku1.value = null; sku2.value = null; }
+
+// --- Delta / winner -----------------------------------------------
+function valueFor(record, field) {
+  return record ? record[field.id] : null;
 }
- 
-function scoreFor(entity, field) {
-  const value = getProviderValue(activeDataset.value, entity, service.value, metric.value, field.id);
-  const dynamicRange = getDynamicRange(activeDataset.value, service.value, metric.value, field.id, rangeEntityKeys());
-  return getScore(field, value, dynamicRange);
-}
- 
-function valueFor(entity, field) {
-  return getProviderValue(activeDataset.value, entity, service.value, metric.value, field.id);
-}
- 
+
 function deltaFor(field) {
-  return getDelta(activeDataset.value, entity1.value, entity2.value, service.value, metric.value, field.id);
+  const a = valueFor(record1.value, field);
+  const b = valueFor(record2.value, field);
+  if (a == null || b == null || !b) return null;
+  return (((a - b) / b) * 100).toFixed(1);
 }
- 
+
 function winnerFor(field) {
-  return getWinner(activeDataset.value, entity1.value, entity2.value, service.value, metric.value, field);
-}
- 
-function billingFor(entity) {
-  if (!entity || !service.value) return null;
-  return getBilling(activeDataset.value, entity, service.value);
-}
-
-function priceFor(entity) {
-  return getPriceValue(activeDataset.value, entity, service.value);
+  const a = valueFor(record1.value, field);
+  const b = valueFor(record2.value, field);
+  if (a == null || b == null) return null;
+  const aWins = field.direction === 'higher' ? a >= b : a <= b;
+  return aWins ? record1.value.provider : record2.value.provider;
 }
 
-function priceDeltaPct() {
-  return getPriceDelta(activeDataset.value, entity1.value, entity2.value, service.value);
-}
-
-function priceWinner() {
-  return getPriceWinner(activeDataset.value, entity1.value, entity2.value, service.value);
-}
-
+// --- Export -------------------------------------------------------
 function buildExportRows() {
-  return activeComparisonColumns.value.map(field => ({
+  return COMPARE_FIELDS.map(field => ({
     metric: field.name,
-    [entity1.value]: valueFor(entity1.value, field),
-    [entity2.value]: valueFor(entity2.value, field),
+    [record1.value.provider]: valueFor(record1.value, field),
+    [record2.value.provider]: valueFor(record2.value, field),
     delta: deltaFor(field),
     winner: winnerFor(field),
   }));
-}
-
-function exportCSV() {
-  const rows = buildExportRows();
-  const header = `Metric,${entity1.value},${entity2.value},Delta,Winner\n`;
-  const body = rows.map(r =>
-    `"${r.metric}",${r[entity1.value] ?? ''},${r[entity2.value] ?? ''},${r.delta},"${r.winner}"`
-  ).join('\n');
-  downloadFile(header + body, `compare-${entity1.value}-vs-${entity2.value}.csv`, 'text/csv');
-}
-
-function exportJSON() {
-  const rows = buildExportRows();
-  downloadFile(JSON.stringify(rows, null, 2), `compare-${entity1.value}-vs-${entity2.value}.json`, 'application/json');
 }
 
 function downloadFile(content, filename, mimeType) {
   const blob = new Blob([content], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
+  a.href = url; a.download = filename; a.click();
   URL.revokeObjectURL(url);
 }
 
+function exportCSV() {
+  const rows = buildExportRows();
+  if (!rows.length) return;
+  const header = `Metric,${record1.value.provider},${record2.value.provider},Delta,Winner\n`;
+  const body = rows.map(r =>
+    `"${r.metric}",${r[record1.value.provider] ?? ''},${r[record2.value.provider] ?? ''},${r.delta ?? ''},"${r.winner ?? ''}"`
+  ).join('\n');
+  downloadFile(header + body, `compare-${record1.value.id}-vs-${record2.value.id}.csv`, 'text/csv');
+}
+
+function exportJSON() {
+  const rows = buildExportRows();
+  if (!rows.length) return;
+  downloadFile(JSON.stringify(rows, null, 2), `compare-${record1.value.id}-vs-${record2.value.id}.json`, 'application/json');
+}
 </script>
 
 <template>
 <div class="page">
-  <div class="top-filter-bar d-flex justify-content-center align-items-end gap-3 py-2 flex-wrap" 
-  :class="{ scrolled: isScrolled }">
-    <div class="data-ex-form-cont">
-      <label class="form-label text-white">Compare</label>
-      <div class="btn-group d-flex">
-        <button class="btn" :class="compareMode === 'providers' ? 'btn-primary' : 'btn-outline-primary'"
-          @click="setMode('providers')">Providers</button>
-        <button class="btn" :class="compareMode === 'scenarios' ? 'btn-primary' : 'btn-outline-primary'"
-          @click="setMode('scenarios')">Scenarios</button>
-      </div>
-    </div>
+  <div class="top-filter-bar d-flex justify-content-center align-items-end gap-3 py-2 flex-wrap"
+    :class="{ scrolled: isScrolled }">
 
     <div class="data-ex-form-cont">
       <label class="form-label text-white">Domain</label>
-      <select class="form-select w-100 custom-form-select" v-model="domain">
-        <option :value="null">Select domain</option>
+      <select class="form-select w-100 custom-form-select" v-model="domain" @change="resetSelection">
+        <option :value="null">Any domain</option>
         <option v-for="d in domains" :key="d" :value="d">{{ d }}</option>
       </select>
     </div>
 
     <div class="data-ex-form-cont">
-      <label class="form-label text-white">Service</label>
-      <select class="form-select w-100 custom-form-select" v-model="service">
-        <option :value="null" disabled selected>Select a service</option>
-        <option
-          v-for="s in ['Compute','Storage','Database','Networking','Kubernetes','Serverless']"
-          :key="s"
-          :value="s"
-          :disabled="domain && !availableServices.includes(s)"
-        >
-          {{ s }}
-        </option>
-      </select>
-    </div>
-
-
-    <div class="data-ex-form-cont">
-        <label class="form-label" style="color: white">Region</label>
-        <select class="form-select w-100 custom-form-select" v-model="region">
-          <option value=" " disabled selected>Select region</option>  
-          <option v-for="r in regions" :key="r" :value="r">
-            {{ r }}
-          </option>
-        </select>
-    </div>
-
-    <div class="data-ex-form-cont">
-        <label class="form-label" style="color: white">Category</label>
-        <select class="form-select w-100 custom-form-select" v-model="metric">
-          <option value=" " disabled selected>Select category</option>  
-          <option v-for="m in metrics" :key="m" :value="m">
-            {{ m }}
-          </option>
-        </select>
-    </div>
-
-    <div class="data-ex-form-cont">
-      <label class="form-label text-white">Pricing Model</label>
-      <select class="form-select w-100 custom-form-select" v-model="pricingModel">
-        <option :value="null">Any</option>
-        <option v-for="pm in pricingModels" :key="pm" :value="pm">{{ pm }}</option>
+      <label class="form-label text-white">Region</label>
+      <select class="form-select w-100 custom-form-select" v-model="region" @change="resetSelection">
+        <option :value="null">Any region</option>
+        <option v-for="r in regionOptions" :key="r" :value="r">{{ r }}</option>
       </select>
     </div>
 
     <div class="data-ex-form-cont">
       <label class="form-label text-white">Operating System</label>
-      <select class="form-select w-100 custom-form-select" v-model="operatingSystem">
+      <select class="form-select w-100 custom-form-select" v-model="operatingSystem" @change="resetSelection">
         <option :value="null">Any</option>
-        <option v-for="os in operatingSystems" :key="os" :value="os">{{ os }}</option>
+        <option v-for="os in operatingSystemOptions" :key="os" :value="os">{{ os }}</option>
       </select>
-    </div>
-
-    <div class="data-ex-form-cont">
-      <label class="form-label text-white">Tenancy</label>
-      <select class="form-select w-100 custom-form-select" v-model="tenancy">
-        <option :value="null">Any</option>
-        <option v-for="t in tenancyOptions" :key="t" :value="t">{{ t }}</option>
-      </select>
-    </div>
-
-    <div class="data-ex-form-cont" v-if="compareMode === 'providers' && instanceTypeOptions.length">
-      <label class="form-label text-white">Instance Type</label>
-      <select class="form-select w-100 custom-form-select" v-model="instanceType">
-        <option :value="null">Any</option>
-        <option v-for="it in instanceTypeOptions" :key="it" :value="it">{{ it }}</option>
-      </select>
-    </div>
-
-    <div class="data-ex-form-cont">
-        <label class="form-label" style="color: white">Granularity</label>
-        <select v-model="granularity" class="form-select custom-form-select">
-          <option value="hourly">Hourly</option>
-          <option value="daily">Daily</option>
-          <option value="weekly">Weekly</option>
-          <option value="monthly">Monthly</option>
-        </select>
-    </div>
-
-    <div class="data-ex-form-cont">
-      <div>
-        <label class="form-label text-white">Date range</label>
-        <VueDatePicker v-model="dateRange" :range="true" :dark="true" placeholder="Select your date range"/>
-      </div>
     </div>
 
     <div>
       <label class="form-label text-white">Export</label>
       <div class="data-ex-form-cont d-flex gap-3">
-        <button type="button" class="btn btn-outline-primary" :disabled="!entity1 || !entity2 || !service" @click="exportCSV">CSV</button>
-        <button type="button" class="btn btn-outline-primary" :disabled="!entity1 || !entity2 || !service" @click="exportJSON">JSON</button>
+        <button type="button" class="btn btn-outline-primary" :disabled="!record1 || !record2" @click="exportCSV">CSV</button>
+        <button type="button" class="btn btn-outline-primary" :disabled="!record1 || !record2" @click="exportJSON">JSON</button>
       </div>
     </div>
   </div>
 
   <div class="comparison-container">
+    <div style="width: 1000px; height: 750px;" class="mb-4">
+      <MetricChart :records="chartRecords" :columns="CHART_COLUMNS" />
+    </div>
+
     <div class="comparison-kpi-container">
 
-
       <div class="comparison-kpi-card">
-        <div class="data-ex-form-cont">
-          <label class="form-label text-white">{{ entityLabel }}</label>
- 
-          <select class="form-select custom-form-select" v-model="entity1">
-            <option :value="null" disabled selected>Select {{ entityLabel.toLowerCase() }}</option>
-            <option v-for="e in filteredEntityOptions" :key="e" :value="e" :disabled="e === entity2">{{ e }}</option>
-          </select>
-          <div v-if="service && !filteredEntityOptions.length" class="text-white-50 small mt-1">
-            No {{ entityLabel.toLowerCase() }} matches the current filters.
-          </div>
- 
-          <div v-if="entity1 && service && billingFor(entity1)" class="price-highlight-box mt-2">
-            <div class="price-highlight-label">Effective Price</div>
-            <div class="price-highlight-value">
-              {{ priceFor(entity1) }}
-              <span class="price-unit">{{ billingFor(entity1).currencyCode }} / {{ billingFor(entity1).unitOfMeasure }}</span>
-            </div>
-            <div class="price-highlight-sku">{{ billingFor(entity1).skuName }}</div>
-          </div>
+        <label class="form-label text-white">Provider A</label>
+        <select class="form-select custom-form-select" v-model="provider1" @change="sku1 = null">
+          <option :value="null">Any provider</option>
+          <option v-for="p in providers" :key="p" :value="p" :disabled="p === provider2">{{ p }}</option>
+        </select>
 
-          <div v-if="entity1 && entity2 && service && metric" class="mt-3">
-            <div v-for="field in activeComparisonColumns" :key="field.id" class="kpi-score-row">
-              <strong>{{ field.name }}</strong>
-              <div class="kpi" :class="kpiCardColor(scoreFor(entity1, field).label)">
-                {{ scoreFor(entity1, field).label ?? 'N/A' }} | {{ scoreFor(entity1, field).normalized?.toFixed(1) ?? 'N/A' }}%
-              </div>
-            </div>
+        <label class="form-label text-white mt-2">SKU</label>
+        <select class="form-select custom-form-select" v-model="sku1">
+          <option :value="null" disabled selected>Select a SKU</option>
+          <option v-for="r in skuOptions1" :key="r.id" :value="r.id" :disabled="r.id === sku2">{{ r.skuName }}</option>
+        </select>
+        <div v-if="!skuOptions1.length" class="text-white-50 small mt-1">No records match the current filters.</div>
+
+        <div v-if="record1" class="price-highlight-box mt-2">
+          <div class="price-highlight-label">Effective Price / hr</div>
+          <div class="price-highlight-value">
+            {{ record1.effective_price_hr }}
+            <span class="price-unit">{{ record1.currencyCode }}</span>
           </div>
-          
- 
+          <div class="price-highlight-sku">{{ record1.skuName }} · {{ record1.region }}</div>
         </div>
       </div>
-    
+
       <div class="comparison-kpi-card">
-        <label class="form-label text-white">{{ entityLabel }}</label>
-          <select class="form-select custom-form-select" v-model="entity2">
-            <option :value="null" disabled selected>Select {{ entityLabel.toLowerCase() }}</option>
-            <option v-for="e in filteredEntityOptions" :key="e" :value="e" :disabled="e === entity1">{{ e }}</option>
-          </select>
-          <div v-if="service && !filteredEntityOptions.length" class="text-white-50 small mt-1">
-            No {{ entityLabel.toLowerCase() }} matches the current filters.
+        <label class="form-label text-white">Provider B</label>
+        <select class="form-select custom-form-select" v-model="provider2" @change="sku2 = null">
+          <option :value="null">Any provider</option>
+          <option v-for="p in providers" :key="p" :value="p" :disabled="p === provider1">{{ p }}</option>
+        </select>
+
+        <label class="form-label text-white mt-2">SKU</label>
+        <select class="form-select custom-form-select" v-model="sku2">
+          <option :value="null" disabled selected>Select a SKU</option>
+          <option v-for="r in skuOptions2" :key="r.id" :value="r.id" :disabled="r.id === sku1">{{ r.skuName }}</option>
+        </select>
+        <div v-if="!skuOptions2.length" class="text-white-50 small mt-1">No records match the current filters.</div>
+
+        <div v-if="record2" class="price-highlight-box mt-2">
+          <div class="price-highlight-label">Effective Price / hr</div>
+          <div class="price-highlight-value">
+            {{ record2.effective_price_hr }}
+            <span class="price-unit">{{ record2.currencyCode }}</span>
           </div>
- 
-          <div v-if="entity2 && service && billingFor(entity2)" class="price-highlight-box mt-2">
-            <div class="price-highlight-label">Effective Price</div>
-            <div class="price-highlight-value">
-              {{ priceFor(entity2) }}
-              <span class="price-unit">{{ billingFor(entity2).currencyCode }} / {{ billingFor(entity2).unitOfMeasure }}</span>
-            </div>
-            <div class="price-highlight-sku">{{ billingFor(entity2).skuName }}</div>
-          </div>
- 
-      <div v-if="entity1 && entity2 && service && metric" class="mt-3">
-        <div v-for="field in activeComparisonColumns" :key="field.id" class="kpi-score-row">
-          <strong>{{ field.name }}</strong>
-          <div class="kpi" :class="kpiCardColor(scoreFor(entity2, field).label)">
-            {{ scoreFor(entity2, field).label ?? 'N/A' }} | {{ scoreFor(entity2, field).normalized?.toFixed(1) ?? 'N/A' }}%
-          </div>
+          <div class="price-highlight-sku">{{ record2.skuName }} · {{ record2.region }}</div>
         </div>
       </div>
- 
-      </div>
     </div>
+  </div>
 
-
-    <div style="width: 1000px; height: 750px;">
-      <MetricChart
-        :entities="chartEntities"
-        :columns="activeComparisonColumns"
-        :dataMap="activeMetricDataMap"
-        :service="service"
-        :granularity="granularity"
-        :granularityLabels="activeGranularityLabels"
-      />
-    </div>  
+  <div v-if="record1 && record2" class="comparison-results">
+    <div class="table-responsive comparison-table-container">
+      <table class="comparison-table table">
+        <thead>
+          <tr>
+            <th>Metric</th>
+            <th>{{ record1.provider }}</th>
+            <th>{{ record2.provider }}</th>
+            <th>Delta</th>
+            <th>Winner</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="field in COMPARE_FIELDS" :key="field.id">
+            <td>{{ field.name }}</td>
+            <td>{{ valueFor(record1, field) ?? 'N/A' }}</td>
+            <td>{{ valueFor(record2, field) ?? 'N/A' }}</td>
+            <td v-if="deltaFor(field) !== null" :class="Number(deltaFor(field)) < 0 ? 'negative-delta' : 'positive-delta'">{{ deltaFor(field) }}%</td>
+            <td v-else>N/A</td>
+            <td>
+              <span v-if="winnerFor(field)" class="winner-badge" :class="winnerFor(field) === record1.provider ? 'positive-badge' : 'negative-badge'">
+                {{ winnerFor(field) }}
+              </span>
+              <span v-else>N/A</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
-
-    <div v-if="entity1 && entity2 && service && metric" class="comparison-results">
-
-      <div class="table-responsive comparison-table-container">
-        <table class="comparison-table table">
-          <thead>
-            <tr>
-              <th>Metric</th>
-              <th>{{ entity1 }}</th>
-              <th>{{ entity2 }}</th>
-              <th>Delta</th>
-              <th>Winner</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="field in activeComparisonColumns" :key="field.id">
-              <td>{{ field.name }}</td>
-              <td>{{ valueFor(entity1, field) }}</td>
-              <td>{{ valueFor(entity2, field) }}</td>
-              <td :class="Number(deltaFor(field)) < 0 ? 'negative-delta' : 'positive-delta'">{{ deltaFor(field) }}</td>
-              <td>
-                <span class="winner-badge" :class="winnerFor(field) === entity1 ? 'positive-badge' : 'negative-badge'">
-                  {{ winnerFor(field) }}
-                </span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div v-if="entity1 && entity2 && service && priceDeltaPct() !== null" class="price-delta-strip">
-          <span>{{ entity1 }}: {{ priceFor(entity1) }} {{ billingFor(entity1)?.currencyCode }} / {{ billingFor(entity1)?.unitOfMeasure }}</span>
-          <span class="price-delta-vs">vs</span>
-          <span>{{ entity2 }}: {{ priceFor(entity2) }} {{ billingFor(entity2)?.currencyCode }} / {{ billingFor(entity2)?.unitOfMeasure }}</span>
-          <div class="price-delta-summary" :class="Number(priceDeltaPct()) < 0 ? 'positive-delta' : 'negative-delta'">
-            {{ Number(priceDeltaPct()) > 0 ? '+' : '' }}{{ priceDeltaPct() }}%
-            {{ Number(priceDeltaPct()) > 0 ? `(${entity1} pricier)` : `(${entity2} pricier)` }}
-          </div>
-      </div>
-    </div>
+  </div>
 </div>
 </template>
 
