@@ -84,6 +84,26 @@ function fieldName(fieldId) {
   return props.columns.find(c => c.id === fieldId)?.name ?? fieldId;
 }
 
+const PX_PER_BAR = 32;
+const MAX_LEGEND_ITEMS = 12;
+const isLarge = computed(() => props.records.length > 20);
+
+// Bar gets a minimum width per bar; the wrapper scrolls horizontally instead of squashing
+const canvasWrapStyle = computed(() => {
+  if (visualizationType.value !== 'Bar') return {};
+  return { width: `max(100%, ${props.records.length * PX_PER_BAR}px)` };
+});
+
+const showLegend = computed(() => {
+  if (visualizationType.value === 'Bar' || visualizationType.value === 'Scatter') return true;
+  return props.records.length <= MAX_LEGEND_ITEMS; // Line / Radar / Pie
+});
+
+function truncate(label, n = 18) {
+  const s = String(label ?? '');
+  return s.length > n ? s.slice(0, n - 1) + '…' : s;
+}
+
 // Bar/Line share a sortable view of the records so "trend" charts read meaningfully
 const sortedRecords = computed(() => {
   const arr = [...props.records];
@@ -108,6 +128,8 @@ function extremesOf(values) {
   return { min: min[1], max: max[1] };
 }
 
+const indexById = computed(() => new Map(props.records.map((r, i) => [r.id, i])));
+
 function buildBarDataset() {
   const recs = sortedRecords.value;
   const values = recs.map(r => valueFor(r, subfieldType.value));
@@ -119,8 +141,9 @@ function buildBarDataset() {
     label: fieldName(subfieldType.value),
     data: values,
     backgroundColor: recs.map((r, i) =>
-      r.id === selectedId.value ? '#ffffff' : (showExtremes.value && (i === min || i === max)) ? HIGHLIGHT : colorFor(props.records.indexOf(r))
+      r.id === selectedId.value ? '#ffffff' : (showExtremes.value && (i === min || i === max)) ? HIGHLIGHT : colorFor(indexById.value.get(r.id))
     ),
+    maxBarThickness: 90,
     order: 1,
   }];
 
@@ -256,6 +279,7 @@ const chartOptions = computed(() => {
   return {
     responsive: true,
     maintainAspectRatio: false,
+    animation: props.records.length > 150 ? false : { duration: 700, easing: 'easeOutQuart' },
     onClick: handleChartClick,
     interaction: isRadar || isPie
       ? {}
@@ -264,6 +288,7 @@ const chartOptions = computed(() => {
       : { mode: 'index', intersect: false },
     plugins: {
       legend: {
+        display: showLegend.value,
         labels: { color: 'white' },
         onClick(e, legendItem, legend) {
           const chart = legend.chart;
@@ -311,7 +336,14 @@ const chartOptions = computed(() => {
           x: {
             type: isScatter ? 'linear' : 'category',
             title: isScatter ? { display: true, text: fieldName(xField.value), color: 'white' } : undefined,
-            ticks: { color: 'white' },
+            ticks: { color: 'white',
+              autoSkip: !isLarge.value,
+              maxRotation: isLarge.value ? 90 : 45,
+              minRotation: isLarge.value ? 90 : 0,
+              callback: isScatter ? undefined : function (value) {
+              return truncate(this.getLabelForValue(value));
+              }, 
+            },
           },
           y: {
             title: isScatter ? { display: true, text: fieldName(yField.value), color: 'white' } : undefined,
@@ -331,7 +363,9 @@ function downloadChart() {
 }
 
 // Reset selection when the underlying record set changes (e.g. filters change upstream)
-watch(() => props.records, () => { selectedId.value = null; });
+watch(() => props.records, () => { 
+  selectedId.value = null; 
+});
 </script>
 
 <template>
@@ -351,22 +385,12 @@ watch(() => props.records, () => { selectedId.value = null; });
           </select>
         </template>
 
-        <select
-          v-else-if="!isMultiMetric"
-          class="form-select custom-form-select"
-          style="width: 200px"
-          v-model="subfieldType"
-        >
+        <select v-else-if="!isMultiMetric" class="form-select custom-form-select" style="width: 200px" v-model="subfieldType">
           <option :value="null" disabled>Select a metric</option>
           <option v-for="field in columns" :key="field.id" :value="field.id">{{ field.name }}</option>
         </select>
 
-        <select
-          v-if="isCartesian"
-          class="form-select custom-form-select"
-          style="width: 150px"
-          v-model="sortDir"
-        >
+        <select v-if="isCartesian" class="form-select custom-form-select" style="width: 150px" v-model="sortDir">
           <option value="asc">Sort: Value ↑</option>
           <option value="desc">Sort: Value ↓</option>
           <option value="name">Sort: Name</option>
@@ -391,7 +415,11 @@ watch(() => props.records, () => { selectedId.value = null; });
 
     <div v-if="!records.length" class="text-white text-center py-5">No records to chart.</div>
     <template v-else>
-      <component ref="chartRef" :is="chartComponent" :data="chartData" :options="chartOptions" />
+      <div class="chart-scroll">
+        <div class="chart-canvas-wrap" :style="canvasWrapStyle">
+          <component ref="chartRef" :is="chartComponent" :data="chartData" :options="chartOptions" />
+        </div>
+      </div>  
       <div v-if="selectedId" class="text-white-50 small mt-2">
         Selected: {{ records.find(r => r.id === selectedId)?.name }} — click again to deselect.
       </div>

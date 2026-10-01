@@ -21,8 +21,9 @@
 .custom-form-select,
 .custom-date-select {
   color: #9ca3af;
-  background-color: #000000;
-
+  option:disabled {
+    color: #292422;
+  }
   &:hover {
     border-color: rgba(99,102,241,0.45);
     box-shadow: 0 12px 40px rgba(0,0,0,0.45);
@@ -48,5 +49,19 @@
   font-size: 0.85rem;
   font-weight: 600;
 }
-.positive-badge { background: rgba(76, 74, 222, 0.14); color: #1e44b9; }
-.negative-badge { background: rgba(248, 113, 201, 0.14); color: #ca309e; }
+.positive-badge { 
+  background: rgba(76, 74, 222, 0.14); 
+  color: #1e44b9; 
+}
+
+.negative-badge { 
+  background: rgba(248, 113, 201, 0.14); 
+  color: #ca309e; 
+}
+
+.chart-host {
+  width: 100%;
+  max-width: 1600px;
+  height: 70vh;
+  min-height: 480px;
+}

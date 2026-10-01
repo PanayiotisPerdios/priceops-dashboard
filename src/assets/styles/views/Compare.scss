@@ -20,7 +20,6 @@
   margin-top: 2rem;
 }
 
-.price-delta-strip,
 .comparison-kpi-card,
 .comparison-table-container {
   padding: 1.5rem;
@@ -30,19 +29,18 @@
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
   transition: 0.25s ease;
 }
-.comparison-kpi-card { 
-  width: 320px; 
-  height: auto; 
-  min-height: 350px; 
+.comparison-kpi-card {
+  width: 360px;
+  height: auto;
+  min-height: 420px;
 }
 
-.comparison-table-container { 
-  width: 1000px; 
-  min-height: 250px; 
-  height: auto; 
+.comparison-table-container {
+  width: 1000px;
+  min-height: 250px;
+  height: auto;
 }
-
-.price-delta-strip:hover,
+.pricing-card:hover,
 .comparison-kpi-card:hover,
 .comparison-table-container:hover {
   transform: translateY(-4px);
@@ -57,6 +55,8 @@
   margin-bottom: 0;
   color: #e5e7ea;
 }
+
+
 .comparison-table th,
 .comparison-table td {
   border-color: #2a2f3a;
@@ -78,67 +78,150 @@
   color: #6366f1;
 }
 
-
-.price-highlight-box {
-  padding: 0.9rem 1rem;
-  border-radius: 12px;
-  background: rgba(99, 102, 241, 0.08);
-  border: 1px solid rgba(99, 102, 241, 0.35);
+// Delta cells in the comparison table
+.positive-delta {
+  color: #4ade80;
+  font-weight: 600;
+}
+.negative-delta {
+  color: #f87171;
+  font-weight: 600;
 }
 
-.price-highlight-label {
+.winner-badge {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
   font-size: 0.75rem;
-  color: #9ca3af;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  margin-bottom: 0.25rem;
+  font-weight: 700;
+}
+.positive-badge {
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.4);
+}
+.negative-badge {
+  background: rgba(99, 102, 241, 0.15);
+  color: #6366f1;
+  border: 1px solid rgba(99, 102, 241, 0.4);
 }
 
-.price-highlight-value {
-  font-size: 1.4rem;
+.pricing-card {
+  border-radius: 12px;
+  background: transparent !important;
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  padding: 1rem;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+  transition: 0.25s ease;
+}
+
+.pricing-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.pricing-card-title {
+  font-size: 1rem;
   font-weight: 700;
   color: #e5e7ea;
+  margin: 0;
 }
 
-.price-unit {
-  font-size: 0.8rem;
-  font-weight: 400;
-  color: #9ca3af;
-  margin-left: 0.35rem;
+.pricing-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.pricing-badge-confirmed {
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.4);
+}
+.pricing-badge-inferred {
+  background: rgba(234, 179, 8, 0.15);
+  color: #eab308;
+  border: 1px solid rgba(234, 179, 8, 0.4);
 }
 
-.price-highlight-sku {
-  margin-top: 0.25rem;
+.pricing-card-subtitle {
   font-size: 0.75rem;
-  color: #6366f1;
+  color: #9ca3af;
+  margin-top: 0.2rem;
 }
 
-.price-delta-strip {
-  width: 300px;
-  min-height: 250px;
+.pricing-card-specs {
+  font-size: 0.8rem;
+  color: #9ca3af;
+  margin-top: 0.5rem;
+}
 
-  padding: 1rem 1.25rem;
-  border-radius: 16px;
-  background: #11141a;
-  border: 1px solid rgba(99, 102, 241, 0.2);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+.pricing-card-price {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #6366f1;
+  margin-top: 0.6rem;
+}
 
+.pricing-card-price-unit {
+  font-size: 0.7rem;
+  color: #9ca3af;
+}
+
+.pricing-card-estimates {
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  color: #9ca3af;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  gap: 0.75rem;
-  text-align: center;
+  gap: 0.15rem;
+}
 
+.pricing-card-meta {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #2a2f3a;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem 1rem;
+  font-size: 0.75rem;
   color: #e5e7ea;
 }
 
-.price-delta-vs {
-  color: #6366f1;
-  font-size: 0.75rem;
+.pricing-card-meta-label {
+  display: block;
+  font-size: 0.65rem;
+  color: #9ca3af;
   text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
-.price-delta-summary {
-  font-weight: 700;
-  margin-top: 0.25rem;
+.data-ex-form-cont {
+    width: 120px;  
+    flex-shrink: 0;
+    flex-grow: 0;
+}
+
+.comparison-select-group {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border-radius: 12px;
+  background: #11141a;
+  border: 1px solid rgba(99, 102, 241, 0.2);
+
+  .form-label {
+    font-size: 0.7rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .form-select {
+    width: 100%;
+    font-size: 0.8rem;
+    padding: 0.35rem 0.5rem;
+  }
 }

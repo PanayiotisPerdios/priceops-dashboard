@@ -3,15 +3,10 @@ import { ref, computed, watch } from 'vue';
 import { domains } from '@/data/filters';
 import { pricingRecords } from '@/data/mockPricingData';
 import { policyPresets } from '@/data/policyPresets';
+import { useScenarioScoring } from '@/composables/useScenarioScoring';
 
-// Criteria drawn from the frozen schema, grouped into the two categories
-// policyPresets already speaks in terms of (Cost / Performance).
-const CRITERIA = [
-  { id: 'effective_price_hr', name: 'Price / hr', category: 'Cost', direction: 'lower' },
-  { id: 'vcpu_count', name: 'vCPU', category: 'Performance', direction: 'higher' },
-  { id: 'memory_gb', name: 'Memory (GB)', category: 'Performance', direction: 'higher' },
-];
-const categories = [...new Set(CRITERIA.map(c => c.category))]; // ['Cost', 'Performance']
+import { SCENARIO_CRITERIA as CRITERIA } from '@/data/constants';
+import { colorFor, paretoFrontier2D } from '@/utils/calculationServices';
 
 const domain = ref('IaaS');
 const viewMode = ref('table');
@@ -40,56 +35,10 @@ watch(domain, () => {
   expandedId.value = null;
 });
 
-// --- Scoring ---------------------------------------------------------
-function normalize(value, min, max, direction) {
-  if (value == null || min === max) return null;
-  const pct = (value - min) / (max - min);
-  const clamped = Math.max(0, Math.min(1, pct));
-  return direction === 'higher' ? clamped : 1 - clamped;
-}
-
-const criteriaRanges = computed(() => {
-  const ranges = {};
-  for (const c of CRITERIA) {
-    const values = items.value.map(r => r[c.id]).filter(v => v != null);
-    ranges[c.id] = values.length ? { min: Math.min(...values), max: Math.max(...values) } : null;
-  }
-  return ranges;
-});
-
-const scored = computed(() => {
-  return items.value
-    .map(item => {
-      const breakdown = {};
-      for (const cat of categories) {
-        const catScores = CRITERIA
-          .filter(c => c.category === cat)
-          .map(c => {
-            const range = criteriaRanges.value[c.id];
-            return range ? normalize(item[c.id], range.min, range.max, c.direction) : null;
-          })
-          .filter(s => s != null);
-        breakdown[cat] = catScores.length ? catScores.reduce((a, b) => a + b, 0) / catScores.length : null;
-      }
-      const totalWeight = categories.reduce((sum, cat) => sum + (categoryWeights.value[cat] ?? 0), 0) || 1;
-      const score = categories.reduce((sum, cat) => sum + (breakdown[cat] ?? 0) * (categoryWeights.value[cat] ?? 0), 0) / totalWeight;
-      return { id: item.id, name: item.skuName, provider: item.provider, breakdown, score };
-    })
-    .sort((a, b) => b.score - a.score);
-});
+const { categories, scored } = useScenarioScoring(items, CRITERIA, categoryWeights);
 
 function toggleExpanded(id) {
   expandedId.value = expandedId.value === id ? null : id;
-}
-
-const providerColors = {
-  AWS: '#f0932b',
-  GCP: '#4285f4',
-  Azure: '#0078d4',
-};
-const fallbackPalette = ['#6366f1', '#ca309e', '#22c55e', '#eab308'];
-function colorFor(id, index) {
-  return providerColors[id] ?? fallbackPalette[index % fallbackPalette.length];
 }
 
 const quadrantPoints = computed(() =>
@@ -97,7 +46,7 @@ const quadrantPoints = computed(() =>
     .filter(item => item.breakdown?.Cost != null && item.breakdown?.Performance != null)
     .map((item, index) => ({
       id: item.id,
-      name: item.name,
+      name: item.skuName,
       x: item.breakdown.Cost,
       y: item.breakdown.Performance,
       color: colorFor(item.provider, index),
@@ -105,12 +54,6 @@ const quadrantPoints = computed(() =>
 );
 const quadrantAvailable = computed(() => quadrantPoints.value.length > 0);
 
-// A point is on the frontier if no other point beats or matches it on both axes with a strict edge on at least one.
-function paretoFrontier2D(points) {
-  return points.filter(
-    p => !points.some(q => q.id !== p.id && q.x >= p.x && q.y >= p.y && (q.x > p.x || q.y > p.y))
-  );
-}
 const paretoIds = computed(() => {
   if (!quadrantPoints.value.length) return new Set();
   return new Set(paretoFrontier2D(quadrantPoints.value).map(p => p.id));
@@ -120,6 +63,7 @@ const PAD = 32;
 const SIZE = 320;
 function toSvgX(x) { return PAD + x * (SIZE - PAD * 2); }
 function toSvgY(y) { return SIZE - PAD - y * (SIZE - PAD * 2); }
+
 </script>
 
 <template>
@@ -131,21 +75,9 @@ function toSvgY(y) { return SIZE - PAD - y * (SIZE - PAD * 2); }
       </select>
 
       <div class="btn-group">
-        <button
-          class="btn btn-outline-primary"
-          :class="{ active: lastPreset === 'costFirst' }"
-          @click="selectPreset('costFirst')"
-        >Cost First</button>
-        <button
-          class="btn btn-outline-primary"
-          :class="{ active: lastPreset === 'performanceFirst' }"
-          @click="selectPreset('performanceFirst')"
-        >Performance First</button>
-        <button
-          class="btn btn-outline-primary"
-          :class="{ active: lastPreset === 'balanced' }"
-          @click="selectPreset('balanced')"
-        >Balanced</button>
+        <button class="btn btn-outline-primary" :class="{ active: lastPreset === 'costFirst' }" @click="selectPreset('costFirst')" >Cost First</button>
+        <button class="btn btn-outline-primary" :class="{ active: lastPreset === 'performanceFirst' }" @click="selectPreset('performanceFirst')" >Performance First</button>
+        <button class="btn btn-outline-primary" :class="{ active: lastPreset === 'balanced' }" @click="selectPreset('balanced')" >Balanced</button>
       </div>
 
       <div class="btn-group ms-auto">
@@ -159,15 +91,7 @@ function toSvgY(y) { return SIZE - PAD - y * (SIZE - PAD * 2); }
       <div class="weight-panel-title">Criteria weights</div>
       <div class="weight-row" v-for="cat in categories" :key="cat">
         <label class="weight-label">{{ cat }}</label>
-        <input
-          type="range"
-          class="form-range"
-          min="0"
-          max="1"
-          step="0.05"
-          :value="categoryWeights[cat] ?? 0"
-          @input="setCategoryWeight(cat, +$event.target.value)"
-        />
+        <input type="range" class="form-range" min="0" max="1" step="0.05" :value="categoryWeights[cat] ?? 0" @input="setCategoryWeight(cat, +$event.target.value)"/>
         <span class="weight-value">{{ ((categoryWeights[cat] ?? 0) * 100).toFixed(0) }}%</span>
       </div>
     </div>
@@ -189,7 +113,7 @@ function toSvgY(y) { return SIZE - PAD - y * (SIZE - PAD * 2); }
         <template v-for="(item, index) in scored" :key="item.id">
           <tr class="rank-row" @click="toggleExpanded(item.id)">
             <td>{{ index + 1 }}</td>
-            <td>{{ item.name }}</td>
+            <td>{{ item.skuName }}</td>
             <td>{{ (item.score * 100).toFixed(1) }}%</td>
             <td class="text-end text-white-50">{{ expandedId === item.id ? '▲' : '▼' }}</td>
           </tr>
@@ -199,10 +123,7 @@ function toSvgY(y) { return SIZE - PAD - y * (SIZE - PAD * 2); }
                 <div v-for="cat in categories" :key="cat" class="breakdown-bar-item">
                   <span class="breakdown-bar-label">{{ cat }}</span>
                   <div class="progress">
-                    <div
-                      class="progress-bar"
-                      :style="{ width: ((item.breakdown[cat] ?? 0) * 100) + '%' }"
-                    ></div>
+                    <div class="progress-bar" :style="{ width: ((item.breakdown[cat] ?? 0) * 100) + '%' }"></div>
                   </div>
                   <span class="breakdown-bar-value">
                     {{ item.breakdown[cat] != null ? (item.breakdown[cat] * 100).toFixed(0) + '%' : 'N/A' }}
@@ -231,13 +152,7 @@ function toSvgY(y) { return SIZE - PAD - y * (SIZE - PAD * 2); }
           <text :x="12" :y="SIZE/2" class="quadrant-axis-label" text-anchor="middle" :transform="`rotate(-90 12 ${SIZE/2})`">Performance score →</text>
 
           <g v-for="p in quadrantPoints" :key="p.id">
-            <circle
-              :cx="toSvgX(p.x)"
-              :cy="toSvgY(p.y)"
-              :r="paretoIds.has(p.id) ? 8 : 6"
-              :fill="p.color"
-              :class="{ 'pareto-point': paretoIds.has(p.id) }"
-            />
+            <circle :cx="toSvgX(p.x)" :cy="toSvgY(p.y)" :r="paretoIds.has(p.id) ? 8 : 6" :fill="p.color" :class="{ 'pareto-point': paretoIds.has(p.id) }"/>
             <text :x="toSvgX(p.x) + 10" :y="toSvgY(p.y) + 4" class="quadrant-point-label">{{ p.name }}</text>
           </g>
         </svg>
@@ -252,15 +167,9 @@ function toSvgY(y) { return SIZE - PAD - y * (SIZE - PAD * 2); }
         <div class="breakdown-grid-label">{{ cat }}</div>
         <div class="breakdown-grid-bars">
           <div v-for="(item, index) in scored" :key="item.id" class="breakdown-grid-bar-item">
-            <span class="breakdown-grid-name">{{ item.name }}</span>
+            <span class="breakdown-grid-name">{{ item.skuName }}</span>
             <div class="progress">
-              <div
-                class="progress-bar"
-                :style="{
-                  width: ((item.breakdown[cat] ?? 0) * 100) + '%',
-                  backgroundColor: colorFor(item.provider, index),
-                }"
-              ></div>
+              <div class="progress-bar" :style="{ width: ((item.breakdown[cat] ?? 0) * 100) + '%', backgroundColor: colorFor(item.provider, index),}"></div>
             </div>
             <span class="breakdown-grid-value">
               {{ item.breakdown[cat] != null ? (item.breakdown[cat] * 100).toFixed(0) + '%' : 'N/A' }}

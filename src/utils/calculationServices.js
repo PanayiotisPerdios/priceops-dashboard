@@ -1,97 +1,79 @@
-export const getProviderValue = (providerMockData, provider, service, category, fieldId) => {
-  return providerMockData?.[provider]?.[service]?.[category]?.[fieldId]
+import { providerColors } from '@/data/constants';
+
+const FALLBACK_PALETTE = ['#6366f1', '#ca309e', '#22c55e', '#eab308'];
+
+export function monthlyEstimate(record) {
+  if (!record?.effective_price_hr) return null;
+  return record.effective_price_hr * 730;
 }
 
-export const normalizeValue = (value, field, range = null) => {
-  const [min, max] = range || field.range
-  if (min == null || max == null || max === min) return 50
-
-  const clamped = Math.max(min, Math.min(max, value))
-  const normalized = ((clamped - min) / (max - min)) * 100
-
-  return field.direction === "lower"
-    ? 100 - normalized
-    : normalized
+export function annualEstimate(record) {
+  if (!record?.effective_price_hr) return null;
+  return record.effective_price_hr * 8760;
 }
 
-export const getScoreLabel = (normalized) => {
-  if (normalized <= 15) return "VERY LOW SCORE"
-  if (normalized <= 35) return "LOW SCORE"
-  if (normalized <= 65) return "MEDIUM SCORE"
-  if (normalized <= 85) return "HIGH SCORE"
-  return "VERY HIGH SCORE"
+export function colorFor(provider, index = 0) {
+  return providerColors[provider] ?? FALLBACK_PALETTE[index % FALLBACK_PALETTE.length];
 }
 
-export const getScore = (field, value, range = null) => {
-  if (value == null || isNaN(value)) {
-    return { normalized: null, label: null }
-  }
-  const normalized = normalizeValue(value, field, range)
-  return {
-    normalized,
-    label: getScoreLabel(normalized)
-  }
+export function valueFor(record, field) {
+  return record ? record[field.id] : null;
 }
 
-export const getDynamicRange = (providerMockData, service, category, fieldId, entityKeys = null) => {
-  const keys = entityKeys && entityKeys.length ? entityKeys : Object.keys(providerMockData)
-  const values = keys
-    .map(provider => getProviderValue(providerMockData, provider, service, category, fieldId))
-    .filter(v => v != null && !isNaN(v))
- 
-  if (values.length < 2) return null
-  return [Math.min(...values), Math.max(...values)]
+export function deltaFor(record1, record2, field) {
+  const a = valueFor(record1, field);
+  const b = valueFor(record2, field);
+  if (a == null || b == null || !b) return null;
+  return (((a - b) / b) * 100).toFixed(1);
 }
 
-export const getDelta = (providerMockData, provider1, provider2, service, category, fieldId) => {
-  const p1 = getProviderValue(providerMockData, provider1, service, category, fieldId)
-  const p2 = getProviderValue(providerMockData, provider2, service, category, fieldId)
- 
-  if (p1 == null || p2 == null) return '-'
-  return (p1 - p2).toFixed(2)
-}
- 
-export const getWinner = (providerMockData, provider1, provider2, service, category, field) => {
-  const p1 = getProviderValue(providerMockData, provider1, service, category, field.id)
-  const p2 = getProviderValue(providerMockData, provider2, service, category, field.id)
- 
-  if (p1 == null || p2 == null) return '-'
- 
-  if (field.direction === 'lower') {
-    return p1 < p2 ? provider1 : provider2
-  }
-  return p1 > p2 ? provider1 : provider2
-}
- 
-export const getBilling = (providerMockData, provider, service) => {
-  return providerMockData?.[provider]?.[service]?.Billing ?? null
-}
- 
-export const getPriceValue = (providerMockData, provider, service) => {
-  return getProviderValue(providerMockData, provider, service, 'Cost', 'unit_price')
+//A point is on the frontier if no other point beats or matches it on both axes with a strict edge on at least one.
+export function paretoFrontier2D(points) {
+  return points.filter(
+    p => !points.some(q => q.id !== p.id && q.x >= p.x && q.y >= p.y && (q.x > p.x || q.y > p.y))
+  );
 }
 
-export const getRetailPriceValue = (providerMockData, provider, service) => {
-  return getProviderValue(providerMockData, provider, service, 'Cost', 'retail_price')
+export function winnerFor(record1, record2, field) {
+  const a = valueFor(record1, field);
+  const b = valueFor(record2, field);
+  if (a == null || b == null) return null;
+  const aWins = field.direction === 'higher' ? a >= b : a <= b;
+  return aWins ? record1.provider : record2.provider;
 }
 
-export const getPriceDelta = (providerMockData, provider1, provider2, service) => {
-  const p1 = getPriceValue(providerMockData, provider1, service)
-  const p2 = getPriceValue(providerMockData, provider2, service)
-  if (p1 == null || p2 == null || !p2) return null
-  return (((p1 - p2) / p2) * 100).toFixed(1)
+export function downloadFile(content, filename, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
-export const getPriceWinner = (providerMockData, provider1, provider2, service) => {
-  const p1 = getPriceValue(providerMockData, provider1, service)
-  const p2 = getPriceValue(providerMockData, provider2, service)
-  if (p1 == null || p2 == null) return '-'
-  return p1 < p2 ? provider1 : provider2
+export function buildExportRows(record1, record2) {
+  return COMPARE_FIELDS.map(field => ({
+    metric: field.name,
+    [record1.provider]: valueFor(record1, field),
+    [record2.provider]: valueFor(record2, field),
+    delta: deltaFor(record1, record2, field),
+    winner: winnerFor(record1, record2, field),
+  }));
 }
 
-export const kpiCardColor = (label) => {
-  if (['VERY LOW SCORE', 'LOW SCORE'].includes(label)) return 'negative-kpi'
-  if (['VERY HIGH SCORE', 'HIGH SCORE'].includes(label)) return 'positive-kpi'
-  if (label === 'MEDIUM SCORE') return 'neutral-kpi'
-  return ''
+export function exportCSV(record1, record2) {
+  const rows = buildExportRows(record1, record2);
+  if (!rows.length) return;
+  const header = `Metric,${record1.provider},${record2.provider},Delta,Winner\n`;
+  const body = rows.map(r =>
+    `"${r.metric}",${r[record1.provider] ?? ''},${r[record2.provider] ?? ''},${r.delta ?? ''},"${r.winner ?? ''}"`
+  ).join('\n');
+  downloadFile(header + body, `compare-${record1.id}-vs-${record2.id}.csv`, 'text/csv');
+}
+
+export function exportJSON(record1, record2) {
+  const rows = buildExportRows(record1, record2);
+  if (!rows.length) return;
+  downloadFile(JSON.stringify(rows, null, 2), `compare-${record1.id}-vs-${record2.id}.json`, 'application/json');
 }

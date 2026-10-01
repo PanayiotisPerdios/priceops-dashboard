@@ -31,3 +31,6 @@ Thumbs.db
 # Misc
 coverage/
 *.tsbuildinfo
+
+# Provider data
+src/data/*.csv
