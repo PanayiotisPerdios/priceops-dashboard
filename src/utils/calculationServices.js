@@ -34,12 +34,42 @@ export function paretoFrontier2D(points) {
   );
 }
 
-export function winnerFor(record1, record2, field) {
+export function winnerSideFor(record1, record2, field) {
   const a = valueFor(record1, field);
   const b = valueFor(record2, field);
-  if (a == null || b == null) return null;
-  const aWins = field.direction === 'higher' ? a >= b : a <= b;
-  return aWins ? record1.provider : record2.provider;
+  if (a == null || b == null || a === b) return null;
+  const aWins = field.direction === 'higher' ? a > b : a < b;
+  return aWins ? 0 : 1;
+}
+
+export function winnerFor(record1, record2, field) {
+  const side = winnerSideFor(record1, record2, field);
+  if (side === null) return null;
+  return side === 0 ? record1.provider : record2.provider;
+}
+
+export function uniqSorted(arr) {
+  return [...new Set(arr.filter(Boolean))].sort();
+}
+
+export function median(sortedAsc) {
+  if (!sortedAsc.length) return null;
+  const mid = Math.floor(sortedAsc.length / 2);
+  return sortedAsc.length % 2 ? sortedAsc[mid] : (sortedAsc[mid - 1] + sortedAsc[mid]) / 2;
+}
+
+export function cheapestPerSku(list) {
+  const best = new Map();
+  for (const r of list) {
+    const key = `${r.provider}|${r.skuName}|${r.operating_system ?? ''}|${r.pricing_model ?? ''}`;
+    const cur = best.get(key);
+    if (!cur || r.effective_price_hr < cur.effective_price_hr) best.set(key, r);
+  }
+  return [...best.values()];
+}
+
+export function fmt(value, digits = 4) {
+  return value == null ? 'N/A' : value.toFixed(digits);
 }
 
 export function downloadFile(content, filename, mimeType) {

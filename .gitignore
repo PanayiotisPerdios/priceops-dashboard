@@ -34,3 +34,5 @@ coverage/
 
 # Provider data
 src/data/*.csv
+public/data/*.csv
+

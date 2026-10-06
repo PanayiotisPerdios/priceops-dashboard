@@ -1,68 +1,270 @@
 .data-exploration-container {
   display: flex;
   justify-content: center;
-  align-items: center;
+  align-items: flex-start;
   gap: 10rem;
   min-height: 80vh;
+  padding: 1rem 0 3rem;
 }
 
 .data-ex-form-cont {
-  width: 120px;  
+  width: 120px;
   flex-shrink: 0;
   flex-grow: 0;
 }
 
-.metrics-table {
-  --bs-table-bg: transparent;
-  --bs-table-border-color: #2a2f3a;
-  background: transparent !important;
-  margin-bottom: 0;
-  color: #e5e7ea;
-}
-
-
-.metrics-table-container {
-  width: 700px;
-  height: 750px;
-  overflow-y: auto;
+.metrics-card {
+  width: min(1280px, 96vw);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;                       
   border-radius: 16px;
   background: #11141a;
   border: 1px solid rgba(99, 102, 241, 0.2);
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
   transition: 0.25s ease;
+
 }
-
-
-.metrics-table-container:hover {
+.metrics-card:hover {
   transform: translateY(-4px);
   border-color: rgba(99, 102, 241, 0.45);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
 }
 
+.metrics-card-header,
+.metrics-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.85rem 1.25rem;
+  background: linear-gradient(180deg, rgba(99, 102, 241, 0.08), rgba(99, 102, 241, 0));
+}
+.metrics-card-header {
+  border-bottom: 1px solid #2a2f3a;
+}
+.metrics-card-footer {
+  border-top: 1px solid #2a2f3a;
+  background: #0f131b;
+}
+.metrics-card-title {
+  font-weight: 700;
+  color: #e5e7ea;
+  margin-right: 0.75rem;
+}
+.metrics-card-sub {
+  font-size: 0.8rem;
+  color: #9ca3af;
+}
+.metrics-card-hint {
+  font-size: 0.72rem;
+  color: #6b7280;
+}
+
+.metrics-table-container {
+  max-height: 640px;                   
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #2a2f3a transparent;
+}
+.metrics-table-container::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.metrics-table-container::-webkit-scrollbar-thumb {
+  background: #2a2f3a;
+  border-radius: 8px;
+}
+.metrics-table-container::-webkit-scrollbar-thumb:hover {
+  background: #3b4252;
+}
+
+.metrics-table {
+  --bs-table-bg: transparent;
+  --bs-table-border-color: #1f2430;
+  --bs-table-color: #d1d5db;
+  --bs-table-hover-bg: rgba(99, 102, 241, 0.1);
+  --bs-table-hover-color: #ffffff;
+  background: transparent !important;
+  margin-bottom: 0;
+  color: #d1d5db;
+  font-size: 0.85rem;
+}
 
 .metrics-table th,
 .metrics-table td {
-  border-color: #2a2f3a;
-  padding: 0.9rem;
+  border-color: #1f2430;
+  padding: 0.7rem 0.9rem;
+  white-space: nowrap;
 }
-.metrics-table thead {
-  background: #0b1220;
-}
+
 .metrics-table thead th {
+  position: sticky;                      
+  top: 0;
+  z-index: 2;
+  background: #0b1220;
   color: #9ca3af;
-  font-weight: 600;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   border-bottom: 1px solid #2a2f3a;
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s ease, background 0.15s ease;
 }
+.metrics-table thead th:hover {
+  color: #e5e7ea;
+  background: #101a2e;
+}
+.metrics-table thead th.sorted {
+  color: #a5b4fc;
+  box-shadow: inset 0 -2px 0 #6366f1;
+}
+.sort-arrow {
+  display: inline-block;
+  min-width: 0.9em;
+  margin-left: 0.25rem;
+  font-size: 0.6rem;
+}
+
 .metrics-table tbody tr {
-  background: #111827;
-  transition: 0.2s ease;
+  background: transparent;
+  transition: background 0.15s ease;
+}
+.metrics-table tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.018);
 }
 .metrics-table tbody td {
-  color: #9ca3af;
-}
-.metrics-table tbody td:hover {
-  background: rgba(184, 190, 181, 0.121);
+  color: #d1d5db;
 }
 .metrics-table tbody th {
   color: #6366f1;
+}
+
+.metrics-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.metrics-table .nowrap {
+  white-space: nowrap;
+}
+.metrics-table .na {
+  color: #4b5563;
+}
+
+.provider-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 0.55rem;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.06);
+}
+
+.sku-cell {
+  max-width: 300px;                    
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #f3f4f6 !important;
+  font-weight: 600;
+}
+
+.type-pill,
+.pm-pill {
+  display: inline-block;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.type-pill {
+  background: rgba(99, 102, 241, 0.12);
+  color: #a5b4fc;
+  border: 1px solid rgba(99, 102, 241, 0.28);
+}
+
+.pm-pill {
+  background: rgba(156, 163, 175, 0.12);
+  color: #9ca3af;
+  border: 1px solid rgba(156, 163, 175, 0.3);
+}
+.pm-pill.pm-on_demand {
+  background: rgba(34, 197, 94, 0.12);
+  color: #4ade80;
+  border-color: rgba(34, 197, 94, 0.35);
+}
+.pm-pill.pm-spot,
+.pm-pill.pm-low_priority {
+  background: rgba(234, 179, 8, 0.12);
+  color: #eab308;
+  border-color: rgba(234, 179, 8, 0.35);
+}
+.pm-pill.pm-commitment {
+  background: rgba(99, 102, 241, 0.12);
+  color: #a5b4fc;
+  border-color: rgba(99, 102, 241, 0.35);
+}
+
+.metrics-table .price {
+  color: #a5b4fc;
+  font-weight: 700;
+}
+.metrics-table .price .cur {
+  margin-left: 0.3rem;
+  font-size: 0.65rem;
+  font-weight: 500;
+  color: #6b7280;
+}
+
+.est-badge {
+  margin-right: 0.4rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 6px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: #eab308;
+  background: rgba(234, 179, 8, 0.12);
+  border: 1px solid rgba(234, 179, 8, 0.35);
+}
+
+.quality {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-variant-numeric: tabular-nums;
+}
+.quality-track {
+  width: 56px;
+  height: 6px;
+  border-radius: 999px;
+  background: #1f2430;
+  overflow: hidden;
+}
+.quality-fill {
+  height: 100%;
+  border-radius: 999px;
+}
+.quality-fill.q-high { 
+  background: #4ade80; 
+}
+
+.quality-fill.q-mid { 
+  background: #eab308; 
+}
+
+.quality-fill.q-low { 
+  background: #f87171; 
+}
+
+.metrics-empty {
+  padding: 3rem 1rem;
+  text-align: center;
+}
+.metrics-empty-title {
+  font-weight: 600;
+  color: #e5e7ea;
+  margin-bottom: 0.25rem;
 }
