@@ -42,16 +42,8 @@ const regionCount = new Set(pricingRecords.map(r => r.region)).size
 
   <div class="container mt-4 mb-5">
     <div class="row g-4 justify-content-center">
-      <div
-        class="col-md-4 d-flex justify-content-center"
-        v-for="(card, index) in cards"
-        :key="index"
-      >
-        <Card
-          :title="card.title"
-          :message="card.message"
-          :reference="card.reference"
-        />
+      <div class="col-md-4 d-flex justify-content-center" v-for="(card, index) in cards" :key="index">
+        <Card :title="card.title" :message="card.message" :reference="card.reference"/>
       </div>
     </div>
   </div>

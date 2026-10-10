@@ -2,74 +2,153 @@ import { providerColors } from '@/data/constants';
 
 const FALLBACK_PALETTE = ['#6366f1', '#ca309e', '#22c55e', '#eab308'];
 
+const HOURS_PER_MONTH = 730;
+const HOURS_PER_YEAR = 8760;
+
 export function monthlyEstimate(record) {
-  if (!record?.effective_price_hr) return null;
-  return record.effective_price_hr * 730;
+  if (!record?.effective_price_hr) {
+    return null;
+  }
+  return record.effective_price_hr * HOURS_PER_MONTH;
 }
 
 export function annualEstimate(record) {
-  if (!record?.effective_price_hr) return null;
-  return record.effective_price_hr * 8760;
+  if (!record?.effective_price_hr) {
+    return null;
+  }
+  return record.effective_price_hr * HOURS_PER_YEAR;
 }
 
 export function colorFor(provider, index = 0) {
-  return providerColors[provider] ?? FALLBACK_PALETTE[index % FALLBACK_PALETTE.length];
+  const configuredColor = providerColors[provider];
+
+  if (configuredColor) {
+    return configuredColor;
+  }
+  return FALLBACK_PALETTE[index % FALLBACK_PALETTE.length];
 }
 
 export function valueFor(record, field) {
-  return record ? record[field.id] : null;
+  if (!record) {
+    return null;
+  }
+  return record[field.id];
 }
 
 export function deltaFor(record1, record2, field) {
   const a = valueFor(record1, field);
   const b = valueFor(record2, field);
-  if (a == null || b == null || !b) return null;
-  return (((a - b) / b) * 100).toFixed(1);
+ 
+  if (a == null || b == null || !b) {
+    return null;
+  }
+ 
+  const percentDifference = ((a - b) / b) * 100;
+  return percentDifference.toFixed(1);
 }
 
-//A point is on the frontier if no other point beats or matches it on both axes with a strict edge on at least one.
 export function paretoFrontier2D(points) {
-  return points.filter(
-    p => !points.some(q => q.id !== p.id && q.x >= p.x && q.y >= p.y && (q.x > p.x || q.y > p.y))
-  );
+  function isDominated(point) {
+    for (const other of points) {
+
+      if (other.id === point.id) {
+        continue;
+      }
+ 
+      const atLeastAsGoodOnBoth = other.x >= point.x && other.y >= point.y;
+      const strictlyBetterOnOne = other.x > point.x || other.y > point.y;
+ 
+      if (atLeastAsGoodOnBoth && strictlyBetterOnOne) {
+        return true;
+      }
+    }
+    return false;
+  }
+ 
+  return points.filter(function (point) {
+    return !isDominated(point);
+  });
 }
 
 export function winnerSideFor(record1, record2, field) {
   const a = valueFor(record1, field);
   const b = valueFor(record2, field);
-  if (a == null || b == null || a === b) return null;
-  const aWins = field.direction === 'higher' ? a > b : a < b;
-  return aWins ? 0 : 1;
+ 
+  if (a == null || b == null || a === b) {
+    return null;
+  }
+ 
+  let firstWins;
+  if (field.direction === 'higher') {
+    firstWins = a > b;
+  } else {
+    firstWins = a < b;
+  }
+ 
+  if (firstWins) {
+    return 0;
+  }
+  return 1;
 }
 
 export function winnerFor(record1, record2, field) {
   const side = winnerSideFor(record1, record2, field);
-  if (side === null) return null;
-  return side === 0 ? record1.provider : record2.provider;
+ 
+  if (side === null) {
+    return null;
+  }
+  if (side === 0) {
+    return record1.provider;
+  }
+  return record2.provider;
 }
 
 export function uniqSorted(arr) {
-  return [...new Set(arr.filter(Boolean))].sort();
+  const truthyValues = arr.filter(Boolean);
+  const unique = [...new Set(truthyValues)];
+  return unique.sort();
 }
 
 export function median(sortedAsc) {
-  if (!sortedAsc.length) return null;
-  const mid = Math.floor(sortedAsc.length / 2);
-  return sortedAsc.length % 2 ? sortedAsc[mid] : (sortedAsc[mid - 1] + sortedAsc[mid]) / 2;
+  if (sortedAsc.length === 0) {
+    return null;
+  }
+ 
+  const middle = Math.floor(sortedAsc.length / 2);
+ 
+  if (sortedAsc.length % 2 === 1) {
+    return sortedAsc[middle];
+  }
+ 
+  return (sortedAsc[middle - 1] + sortedAsc[middle]) / 2;
 }
 
 export function cheapestPerSku(list) {
-  const best = new Map();
-  for (const r of list) {
-    const key = `${r.provider}|${r.skuName}|${r.operating_system ?? ''}|${r.pricing_model ?? ''}`;
-    const cur = best.get(key);
-    if (!cur || r.effective_price_hr < cur.effective_price_hr) best.set(key, r);
+  const cheapestByKey = new Map();
+ 
+  for (const record of list) {
+    const key = [
+      record.provider,
+      record.skuName,
+      record.operating_system ?? '',
+      record.pricing_model ?? '',
+    ].join('|');
+ 
+    const currentCheapest = cheapestByKey.get(key);
+ 
+    if (!currentCheapest || record.effective_price_hr < currentCheapest.effective_price_hr) {
+      cheapestByKey.set(key, record);
+    }
   }
-  return [...best.values()];
+ 
+  return [...cheapestByKey.values()];
 }
 
 export function fmt(value, digits = 4) {
-  return value == null ? 'N/A' : value.toFixed(digits);
+  if (value == null) {
+    return 'N/A';
+  }
+  return value.toFixed(digits);
 }
 
 export function downloadFile(content, filename, mimeType) {
@@ -94,16 +173,36 @@ export function buildExportRows(record1, record2) {
 
 export function exportCSV(record1, record2) {
   const rows = buildExportRows(record1, record2);
-  if (!rows.length) return;
+  if (rows.length === 0) {
+    return;
+  }
+ 
   const header = `Metric,${record1.provider},${record2.provider},Delta,Winner\n`;
-  const body = rows.map(r =>
-    `"${r.metric}",${r[record1.provider] ?? ''},${r[record2.provider] ?? ''},${r.delta ?? ''},"${r.winner ?? ''}"`
-  ).join('\n');
-  downloadFile(header + body, `compare-${record1.id}-vs-${record2.id}.csv`, 'text/csv');
+ 
+  const lines = rows.map(function (row) {
+    const metric = `"${row.metric}"`;
+    const value1 = row[record1.provider] ?? '';
+    const value2 = row[record2.provider] ?? '';
+    const delta = row.delta ?? '';
+    const winner = `"${row.winner ?? ''}"`;
+ 
+    return `${metric},${value1},${value2},${delta},${winner}`;
+  });
+ 
+  const body = lines.join('\n');
+  const filename = `compare-${record1.id}-vs-${record2.id}.csv`;
+ 
+  downloadFile(header + body, filename, 'text/csv');
 }
 
 export function exportJSON(record1, record2) {
   const rows = buildExportRows(record1, record2);
-  if (!rows.length) return;
-  downloadFile(JSON.stringify(rows, null, 2), `compare-${record1.id}-vs-${record2.id}.json`, 'application/json');
+  if (rows.length === 0) {
+    return;
+  }
+ 
+  const json = JSON.stringify(rows, null, 2);
+  const filename = `compare-${record1.id}-vs-${record2.id}.json`;
+ 
+  downloadFile(json, filename, 'application/json');
 }

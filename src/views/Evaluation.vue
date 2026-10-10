@@ -26,37 +26,85 @@ const lastPreset = ref('balanced');
 const expandedId = ref(null);
 
 watch(
-  () => options.value.domains,
-  domains => {
-    if (!domain.value && domains.length) domain.value = domains.includes('Database') ? 'Database' : domains[0];
+  () => {
+    return options.value.domains;
+  },
+  (domains) => {
+    if (!domain.value && domains.length) {
+      domain.value = domains.includes('Database') ? 'Database' : domains[0];
+    }
   },
   { immediate: true }
 );
 
-const inDomain = computed(() => records.value.filter(r => r.domain === domain.value));
-const subcategoryOptions = computed(() => uniqSorted(inDomain.value.map(r => r.subcategory)));
-const engineOptions = computed(() => uniqSorted(inDomain.value.map(r => r.db_engine)));
-
-const poolBeforeDedupe = computed(() => {
-  if (!domain.value) return [];
-  return inDomain.value.filter(r =>
-    (!subcategory.value || r.subcategory === subcategory.value) &&
-    (!regionGroup.value || r.region_group === regionGroup.value || r.region_group === 'global') &&
-    (!operatingSystem.value || r.operating_system === operatingSystem.value) &&
-    (!dbEngine.value || r.db_engine === dbEngine.value) &&
-    (!pricingModel.value || r.pricing_model === pricingModel.value) &&
-    (!requireSpecs.value || (r.vcpu_count != null && r.memory_gb != null))
-  );
+const inDomain = computed( () => {
+  return records.value.filter( (record) => {
+    return record.domain === domain.value;
+  });
 });
 
-const items = computed(() => (bestRegionOnly.value ? cheapestPerSku(poolBeforeDedupe.value) : poolBeforeDedupe.value));
+const subcategoryOptions = computed( () => {
+  return uniqSorted(inDomain.value.map( (record) => {
+    return record.subcategory;
+  }));
+});
+ 
+const engineOptions = computed( () => {
+  return uniqSorted(inDomain.value.map( (record) => {
+    return record.db_engine;
+  }));
+});
+
+const poolBeforeDedupe = computed(function () {
+  if (!domain.value) {
+    return [];
+  }
+ 
+  return inDomain.value.filter( (record) => {
+    if (subcategory.value && record.subcategory !== subcategory.value) {
+      return false;
+    }
+ 
+    if (
+      regionGroup.value &&
+      record.region_group !== regionGroup.value &&
+      record.region_group !== 'global'
+    ) {
+      return false;
+    }
+ 
+    if (operatingSystem.value && record.operating_system !== operatingSystem.value) {
+      return false;
+    }
+    if (dbEngine.value && record.db_engine !== dbEngine.value) {
+      return false;
+    }
+    if (pricingModel.value && record.pricing_model !== pricingModel.value) {
+      return false;
+    }
+    if (requireSpecs.value && (record.vcpu_count == null || record.memory_gb == null)) {
+      return false;
+    }
+ 
+    return true;
+  });
+});
+
+const items = computed( () => {
+  if (bestRegionOnly.value) {
+    return cheapestPerSku(poolBeforeDedupe.value);
+  }
+  return poolBeforeDedupe.value;
+});
 
 const presetNames = Object.keys(policyPresets);
 const categoryWeights = ref({});
 
 function applyPreset(name) {
-  categoryWeights.value = { ...(policyPresets[name] ?? DEFAULT_WEIGHTS) };
+  const presetWeights = policyPresets[name] ?? DEFAULT_WEIGHTS;
+  categoryWeights.value = { ...presetWeights };
 }
+
 applyPreset('balanced');
 
 function selectPreset(name) {
@@ -69,7 +117,12 @@ function setCategoryWeight(cat, value) {
 }
 
 function onDomainChange() {
-  subcategory.value = subcategoryOptions.value.includes(DEFAULT_SUBCATEGORY) ? DEFAULT_SUBCATEGORY : null;
+  if (subcategoryOptions.value.includes(DEFAULT_SUBCATEGORY)) {
+    subcategory.value = DEFAULT_SUBCATEGORY;
+  } else {
+    subcategory.value = null;
+  }
+ 
   dbEngine.value = null;
   operatingSystem.value = null;
 }
@@ -81,49 +134,86 @@ watch(domain, () => {
 
 const { categories, scored } = useScenarioScoring(items, CRITERIA, categoryWeights);
 
-const topScored = computed(() => scored.value.slice(0, EVAL_TOP_N));
+const topScored = computed( () => {
+  return scored.value.slice(0, EVAL_TOP_N);
+});
 
 function toggleExpanded(id) {
-  expandedId.value = expandedId.value === id ? null : id;
+  if (expandedId.value === id) {
+    expandedId.value = null;
+  } else {
+    expandedId.value = id;
+  }
 }
 
-const bestPerProvider = computed(() => {
-  const seen = new Map();
-  for (const item of scored.value) if (!seen.has(item.provider)) seen.set(item.provider, item);
-  return [...seen.values()];
+const bestPerProvider = computed( () => {
+  const bestByProvider = new Map();
+ 
+  for (const item of scored.value) {
+    if (!bestByProvider.has(item.provider)) {
+      bestByProvider.set(item.provider, item);
+    }
+  }
+ 
+  return [...bestByProvider.values()];
 });
 
 const xCat = ref('Cost');
 const yCat = ref('Performance');
 
-const allPoints = computed(() =>
-  scored.value
-    .filter(item => item.breakdown?.[xCat.value] != null && item.breakdown?.[yCat.value] != null)
-    .map((item, index) => ({
+const allPoints = computed( () => {
+  const withBothScores = scored.value.filter( (item) => {
+    return item.breakdown?.[xCat.value] != null && item.breakdown?.[yCat.value] != null;
+  });
+ 
+  return withBothScores.map( (item, index) => {
+    return {
       id: item.id,
       name: item.skuName,
       x: item.breakdown[xCat.value],
       y: item.breakdown[yCat.value],
       color: colorFor(item.provider, index),
-    }))
-);
-
-const paretoIds = computed(() => {
-  if (!allPoints.value.length) return new Set();
-  return new Set(paretoFrontier2D(allPoints.value).map(p => p.id));
+    };
+  });
 });
 
-const quadrantPoints = computed(() => {
-  const top = new Set(scored.value.slice(0, QUADRANT_LIMIT).map(i => i.id));
-  return allPoints.value.filter(p => top.has(p.id) || paretoIds.value.has(p.id));
+const paretoIds = computed( () => {
+  if (allPoints.value.length === 0) {
+    return new Set();
+  }
+ 
+  const frontier = paretoFrontier2D(allPoints.value);
+  return new Set(frontier.map( (point) => {
+    return point.id;
+  }));
 });
 
-const quadrantAvailable = computed(() => quadrantPoints.value.length > 0);
+const quadrantPoints = computed( () => {
+  const topIds = new Set(
+    scored.value.slice(0, QUADRANT_LIMIT).map( (item) => {
+      return item.id;
+    })
+  );
+ 
+  return allPoints.value.filter( (point) => {
+    return topIds.has(point.id) || paretoIds.value.has(point.id);
+  });
+});
+
+const quadrantAvailable = computed( () => {
+  return quadrantPoints.value.length > 0;
+});
 
 const PAD = 32;
 const SIZE = 320;
-function toSvgX(x) { return PAD + x * (SIZE - PAD * 2); }
-function toSvgY(y) { return SIZE - PAD - y * (SIZE - PAD * 2); }
+
+function toSvgX(x) {
+  return PAD + x * (SIZE - PAD * 2);
+}
+ 
+function toSvgY(y) {
+  return SIZE - PAD - y * (SIZE - PAD * 2);
+}
 
 </script>
 

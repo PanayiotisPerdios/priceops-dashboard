@@ -10,9 +10,13 @@ const error = ref(null);
 let request = null;
 
 function load() {
-  if (request) return request;
+  if (request) {
+    return request;
+  }
+
   loading.value = true;
   error.value = null;
+
   request = loadUnifiedPricing(undefined, LOADER_OPTIONS)
     .then(data => {
       records.value = data;
@@ -28,7 +32,9 @@ function load() {
   return request;
 }
 
-const options = computed(() => deriveFilterOptions(records.value));
+const options = computed(function () {
+  return deriveFilterOptions(records.value);
+});
 
 export function usePricingData() {
   load();

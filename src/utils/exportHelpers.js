@@ -36,7 +36,6 @@ export function exportCompareJSON(record1, record2, fields) {
   downloadFile(JSON.stringify(rows, null, 2), `compare-${record1.id}-vs-${record2.id}.json`, 'application/json');
 }
 
-// ---- DataExploration.vue: flat record-list export ----
 
 export function exportRowsCSV(rows, filename = 'data-exploration-export.csv') {
   if (!rows.length) return;

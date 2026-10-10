@@ -1,8 +1,16 @@
 import { uniqSorted } from '@/utils/calculationServices';
+import Papa from 'papaparse';
 
-export const DEFAULT_CSV_URL = `${import.meta.env?.BASE_URL ?? '/'}data/unified_pricing.csv`;
+const BASE_URL = import.meta.env?.BASE_URL ?? '/';
+
+export const DEFAULT_CSV_URL = `${BASE_URL}data/unified_pricing.csv`;
 export const DEFAULT_EFFECTIVE_DATE = '2026-10-02T00:00:00Z';
-export const PROVIDER_LABELS = { aws: 'AWS', azure: 'Azure', gcp: 'GCP' };
+
+export const PROVIDER_LABELS = { 
+  aws: 'AWS', 
+  azure: 'Azure', 
+  gcp: 'GCP' 
+};
 
 export const CATEGORY_TO_DOMAIN = {
   compute: 'IaaS',
@@ -16,139 +24,181 @@ export const CATEGORY_TO_DOMAIN = {
 
 const GENERIC_SKU = /^(vcore|standard|basic|cpu|ram|kubernetes|google|ssd|global|dedicated|hybrid|automatic|backup)$/i;
 
-export function parseCsv(text) {
-  if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
-  const rows = [];
-  const n = text.length;
-  let row = [];
-  let i = 0;
-
-  while (i < n) {
-    let field;
-
-    if (text[i] === '"') {
-      i++;
-      let start = i;
-      let buf = '';
-      for (;;) {
-        const q = text.indexOf('"', i);
-        if (q === -1) { buf += text.slice(start); i = n; break; }       // unterminated quote
-        if (text[q + 1] === '"') { buf += text.slice(start, q + 1); i = q + 2; start = i; continue; }
-        buf += text.slice(start, q);
-        i = q + 1;
-        break;
-      }
-      field = buf;
-    } else {
-      let j = i;
-      while (j < n) {
-        const c = text[j];
-        if (c === ',' || c === '\n' || c === '\r') break;
-        j++;
-      }
-      field = text.slice(i, j);
-      i = j;
-    }
-
-    row.push(field);
-
-    if (i >= n) { rows.push(row); row = []; break; }
-
-    const c = text[i];
-    if (c === ',') {
-      i++;
-      if (i >= n) { row.push(''); rows.push(row); row = []; }
-    } else {
-      if (c === '\r' && text[i + 1] === '\n') i++;
-      i++;
-      rows.push(row);
-      row = [];
-    }
-  }
-
-  return rows.filter(r => !(r.length === 1 && r[0] === ''));
-}
-
 export function csvToObjects(text) {
-  const rows = parseCsv(text);
-  if (!rows.length) return [];
-  const header = rows[0].map(h => h.trim());
-  const out = new Array(rows.length - 1);
-  for (let r = 1; r < rows.length; r++) {
-    const obj = {};
-    const cells = rows[r];
-    for (let c = 0; c < header.length; c++) obj[header[c]] = cells[c] ?? '';
-    out[r - 1] = obj;
+  const { data, errors } = Papa.parse(text, {
+    header: true,                        
+    delimiter: ',',                      
+    skipEmptyLines: true,
+    transformHeader: h => h.trim(),
+  });
+  if (errors.length) {
+    console.warn(`CSV parse issues (${errors.length}):`, errors.slice(0, 5));
   }
-  return out;
+  return data;
 }
 
-const toNum = v => {
-  if (v === '' || v == null) return null;
-  const x = Number(v);
-  return Number.isFinite(x) ? x : null;
-};
-const round2 = x => (x == null ? null : Math.round(x * 100) / 100);
-const toBool = v => /^true$/i.test(String(v ?? '').trim());
-const toStr = v => (v === '' || v == null ? null : String(v));
+function toNum(value) {
+  if (value === '' || value == null) {
+    return null;
+  }
+  const number = Number(value);
+  if (Number.isFinite(number)) {
+    return number;
+  }
+  return null;
+}
+
+function round2(value) {
+  if (value == null) {
+    return null;
+  }
+  return Math.round(value * 100) / 100;
+}
+
+function toBool(value) {
+  const text = String(value ?? '').trim();
+  return /^true$/i.test(text);
+}
+
+function toStr(value) {
+  if (value === '' || value == null) {
+    return null;
+  }
+  return String(value);
+}
 
 export function normalizeOs(v) {
-  const t = String(v ?? '').toLowerCase();
-  if (!t) return null;
-  if (t.includes('windows')) return 'Windows';
-  if (t.includes('red hat') || t.includes('rhel')) return 'RHEL';
-  if (t.includes('sles') || t.includes('suse')) return 'SUSE';
-  if (t.includes('linux') || t.includes('ubuntu')) return 'Linux';
+  const os = String(v ?? '').toLowerCase();
+  if (!os) {
+    return null;
+  }
+  if (os.includes('openshift') || os.includes('r server')) {
+    return null;
+  }
+  if (os.includes('windows')) {
+    return 'Windows';
+  }
+  if (os.includes('red hat') || os.includes('rhel')) {
+    return 'RHEL';
+  }
+  if (os.includes('sles') || os.includes('suse')) {
+    return 'SUSE';
+  }
+  if (os.includes('linux') || os.includes('ubuntu')) {
+    return 'Linux';
+  }
+  
   return null;
 }
 
 export function priceBasisOf(unit) {
-  if (unit === 'hour' || unit === 'second') return 'resource';
-  if (unit?.startsWith('vcpu_')) return 'per_vcpu';
-  if (unit?.startsWith('gb_')) return 'per_gb';
+  if (unit === 'hour' || unit === 'second') {
+    return 'resource';
+  }
+  if (unit?.startsWith('vcpu_')) {
+    return 'per_vcpu';
+  }
+  if (unit?.startsWith('gb_')) {
+    return 'per_gb';
+  }
   return 'other';
 }
 
 export function computeQualityScore({ vcpu, memory, estimated, pricingModel }) {
   let score = 100;
-  if (vcpu == null) score -= 20;
-  if (memory == null) score -= 20;
-  if (estimated) score -= 15;
-  if (pricingModel && pricingModel !== 'on_demand') score -= 5;
+ 
+  if (vcpu == null) {
+    score -= 20;
+  }
+  if (memory == null) {
+    score -= 20;
+  }
+  if (estimated) {
+    score -= 15;
+  }
+  if (pricingModel && pricingModel !== 'on_demand') {
+    score -= 5;
+  }
+ 
   return Math.max(0, score);
 }
 
 export function buildSkuName(r, os) {
   const vcpu = toNum(r.vcpu);
-  const mem = round2(toNum(r.memory_gb));
+  const memoryGb = round2(toNum(r.memory_gb));
   const service = r.service || '';
-
+ 
+  // ---- Step 1: main part of the name ----
   let core;
+ 
   if (r.category === 'database' && vcpu != null) {
-    core = [r.db_engine || service, `${vcpu} vCPU`, mem != null ? `${mem} GB` : null, r.instance_type]
-      .filter(Boolean).join(' · ');
+    // Databases: engine · vCPU · memory · instance type
+    const parts = [
+      r.db_engine || service,
+      `${vcpu} vCPU`,
+      memoryGb != null ? `${memoryGb} GB` : null,
+      r.instance_type,
+    ];
+    core = parts.filter(Boolean).join(' · ');
   } else {
-    core = (service === 'Virtual Machines' ? r.sku_name : r.instance_type) || r.sku_name || r.description || r.sku_id || r.id;
-    if (GENERIC_SKU.test(core)) core = `${service} ${core}`.trim();
+    // Everything else: pick the best available identifier.
+    // Virtual Machines prefer sku_name, other services prefer instance_type.
+    const preferred = service === 'Virtual Machines' ? r.sku_name : r.instance_type;
+    core = preferred || r.sku_name || r.description || r.sku_id || r.id;
+ 
+    // Too vague on its own? Prefix with the service name.
+    if (GENERIC_SKU.test(core)) {
+      core = `${service} ${core}`.trim();
+    }
   }
-
-  const label = [core];
-  const addTag = tag => { if (tag && !core.toLowerCase().includes(tag.toLowerCase())) label.push(tag); };
-  if (os && os !== 'Linux') addTag(os);
-  if (r.pricing_model && r.pricing_model !== 'on_demand') addTag(r.pricing_model.replace('_', ' '));
-  if (r.deployment === 'multi_az') addTag('Multi-AZ');
-  return label.length > 1 ? `${label[0]} (${label.slice(1).join(', ')})` : label[0];
+ 
+  // ---- Step 2: extra tags shown in parentheses ----
+  const tags = [];
+ 
+  // Only add a tag if the core name doesn't already mention it
+  function addTag(tag) {
+    if (!tag) {
+      return;
+    }
+    const alreadyInName = core.toLowerCase().includes(tag.toLowerCase());
+    if (!alreadyInName) {
+      tags.push(tag);
+    }
+  }
+ 
+  if (os && os !== 'Linux') {
+    addTag(os); // Linux is the default, so we don't label it
+  }
+  if (r.pricing_model && r.pricing_model !== 'on_demand') {
+    addTag(r.pricing_model.replace('_', ' '));
+  }
+  if (r.deployment === 'multi_az') {
+    addTag('Multi-AZ');
+  }
+ 
+  if (tags.length === 0) {
+    return core;
+  }
+  return `${core} (${tags.join(', ')})`;
 }
 
 export function mapUnifiedRow(r, { effectiveDate = DEFAULT_EFFECTIVE_DATE } = {}) {
   const unit = toStr(r.unit);
   let pricePerHour = toNum(r.price_per_hour);
   if (pricePerHour == null) {
-    const p = toNum(r.price_usd);
-    if (p != null && unit === 'hour') pricePerHour = p;
-    if (p != null && unit === 'second') pricePerHour = p * 3600;
+    const priceUsd = toNum(r.price_usd);
+ 
+    if (priceUsd != null && unit === 'hour') {
+      pricePerHour = priceUsd;
+    }
+    if (priceUsd != null && unit === 'second') {
+      pricePerHour = priceUsd * 3600;
+    }
   }
-  if (pricePerHour == null) return null;
+
+  if (pricePerHour == null) {
+    return null;
+  }
 
   const os = normalizeOs(r.os_or_license);
   const vcpu = toNum(r.vcpu);
@@ -200,46 +250,79 @@ export function parseUnifiedCsv(text, options = {}) {
   const { basis = 'resource', subcategories = null, categories = null, dropZero = true } = options;
 
   const records = [];
-  for (const row of csvToObjects(text)) {
-    if (categories && !categories.includes(row.category)) continue;
-    if (subcategories && !subcategories.includes(row.subcategory)) continue;
-    const rec = mapUnifiedRow(row, options);
-    if (!rec) continue;
-    if (basis === 'resource' && rec.price_basis !== 'resource') continue;
-    if (dropZero && !(rec.effective_price_hr > 0)) continue;
-    records.push(rec);
+  const rows = csvToObjects(text);
+ 
+  for (const row of rows) {
+
+    if (categories && !categories.includes(row.category)) {
+      continue;
+    }
+    if (subcategories && !subcategories.includes(row.subcategory)) {
+      continue;
+    }
+ 
+    const record = mapUnifiedRow(row, options);
+    if (!record) {
+      continue;
+    }
+ 
+    if (basis === 'resource' && record.price_basis !== 'resource') {
+      continue;
+    }
+ 
+    if (dropZero && !(record.effective_price_hr > 0)) {
+      continue;
+    }
+ 
+    records.push(record);
   }
+ 
   return records;
 }
 
 let cache = null;
 
 export function loadUnifiedPricing(url = DEFAULT_CSV_URL, options = {}) {
-  const key = url + JSON.stringify(options);
-  if (cache?.key === key) return cache.promise;
+  const cacheKey = url + JSON.stringify(options);
+ 
+  if (cache?.key === cacheKey) {
+    return cache.promise;
+  }
+ 
   const promise = fetch(url)
-    .then(res => {
-      if (!res.ok) throw new Error(`Could not load ${url} (${res.status})`);
-      return res.text();
+    .then(function (response) {
+      if (!response.ok) {
+        throw new Error(`Could not load ${url} (${response.status})`);
+      }
+      return response.text();
     })
-    .then(text => parseUnifiedCsv(text, options));
-  cache = { key, promise };
-  promise.catch(() => { cache = null; });
+    .then(function (text) {
+      return parseUnifiedCsv(text, options);
+    });
+ 
+  cache = { key: cacheKey, promise };
+ 
+  promise.catch(function () {
+    cache = null;
+  });
+ 
   return promise;
 }
 
-const uniq = (arr, f) => uniqSorted(arr.map(f));
-
+function uniqueValues(records, getValue) {
+  const values = records.map(getValue);
+  return uniqSorted(values);
+}
 export function deriveFilterOptions(records) {
   return {
-    providers: uniq(records, r => r.provider),
-    domains: uniq(records, r => r.domain),
-    categories: uniq(records, r => r.category),
-    subcategories: uniq(records, r => r.subcategory),
-    regions: uniq(records, r => r.region),
-    regionGroups: uniq(records, r => r.region_group),
-    operatingSystems: uniq(records, r => r.operating_system),
-    dbEngines: uniq(records, r => r.db_engine),
-    pricingModels: uniq(records, r => r.pricing_model),
+    providers: uniqueValues(records, (r) => r.provider),
+    domains: uniqueValues(records, (r) => r.domain),
+    categories: uniqueValues(records, (r) => r.category),
+    subcategories: uniqueValues(records, (r) => r.subcategory),
+    regions: uniqueValues(records, (r) => r.region),
+    regionGroups: uniqueValues(records, (r) => r.region_group),
+    operatingSystems: uniqueValues(records, (r) => r.operating_system),
+    dbEngines: uniqueValues(records, (r) => r.db_engine),
+    pricingModels: uniqueValues(records, (r) => r.pricing_model),
   };
 }

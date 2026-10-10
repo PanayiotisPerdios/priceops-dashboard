@@ -18,9 +18,18 @@ import { exportCompareCSV, exportCompareJSON } from '@/utils/exportHelpers';
 const { records, loading, error, options } = usePricingData();
 
 const isScrolled = ref(false);
-const handleScroll = () => { isScrolled.value = window.scrollY > 20; };
-onMounted(() => window.addEventListener('scroll', handleScroll));
-onUnmounted(() => window.removeEventListener('scroll', handleScroll));
+
+function handleScroll() {
+  isScrolled.value = window.scrollY > 20;
+}
+
+onMounted( () => {
+  window.addEventListener('scroll', handleScroll);
+});
+ 
+onUnmounted( () => {
+  window.removeEventListener('scroll', handleScroll);
+});
 
 //Shared filters
 const compareMode = ref('sku');
@@ -32,21 +41,60 @@ const operatingSystem = ref(null);
 const dbEngine = ref(null);
 const pricingModel = ref('on_demand');
 
-const inDomain = computed(() => records.value.filter(r => !domain.value || r.domain === domain.value));
-const subcategoryOptions = computed(() => uniqSorted(inDomain.value.map(r => r.subcategory)));
-const engineOptions = computed(() => uniqSorted(inDomain.value.map(r => r.db_engine)));
+const inDomain = computed( () => {
+  return records.value.filter( (record) => {
+    return !domain.value || record.domain === domain.value;
+  });
+});
 
-const filteredRecords = computed(() => {
-  const d = domain.value, sc = subcategory.value, rg = regionGroup.value;
-  const os = operatingSystem.value, eng = dbEngine.value, pm = pricingModel.value;
-  return records.value.filter(r =>
-    (!d || r.domain === d) &&
-    (!sc || r.subcategory === sc) &&
-    (!rg || r.region_group === rg || r.region_group === 'global') &&
-    (!os || r.operating_system === os) &&
-    (!eng || r.db_engine === eng) &&
-    (!pm || r.pricing_model === pm)
-  );
+const subcategoryOptions = computed( () => {
+  return uniqSorted(inDomain.value.map( (record) => {
+    return record.subcategory;
+  }));
+});
+
+const engineOptions = computed( () => {
+  return uniqSorted(inDomain.value.map( (record) => {
+    return record.db_engine;
+  }));
+});
+
+const filteredRecords = computed( () => {
+  const selectedDomain = domain.value;
+  const selectedSubcategory = subcategory.value;
+  const selectedRegionGroup = regionGroup.value;
+  const selectedOs = operatingSystem.value;
+  const selectedEngine = dbEngine.value;
+  const selectedPricingModel = pricingModel.value;
+ 
+  return records.value.filter( (record) => {
+    if (selectedDomain && record.domain !== selectedDomain) {
+      return false;
+    }
+    if (selectedSubcategory && record.subcategory !== selectedSubcategory) {
+      return false;
+    }
+ 
+    if (
+      selectedRegionGroup &&
+      record.region_group !== selectedRegionGroup &&
+      record.region_group !== 'global'
+    ) {
+      return false;
+    }
+ 
+    if (selectedOs && record.operating_system !== selectedOs) {
+      return false;
+    }
+    if (selectedEngine && record.db_engine !== selectedEngine) {
+      return false;
+    }
+    if (selectedPricingModel && record.pricing_model !== selectedPricingModel) {
+      return false;
+    }
+ 
+    return true;
+  });
 });
 
 //Provider mode
@@ -57,104 +105,247 @@ const region2 = ref(null);
 const sku1 = ref(null);
 const sku2 = ref(null);
 
-const regionOptions1 = computed(() => uniqSorted(filteredRecords.value.filter(r => r.provider === provider1.value).map(r => r.region)));
-const regionOptions2 = computed(() => uniqSorted(filteredRecords.value.filter(r => r.provider === provider2.value).map(r => r.region)));
+function regionsFor(provider) {
+  const rowsForProvider = filteredRecords.value.filter( (record) => {
+    return record.provider === provider;
+  });
+ 
+  return uniqSorted(rowsForProvider.map( (record) => {
+    return record.region;
+  }));
+}
 
-const skuRecord1 = computed(() => filteredRecords.value.find(r => r.id === sku1.value) || null);
-const skuRecord2 = computed(() => filteredRecords.value.find(r => r.id === sku2.value) || null);
+const regionOptions1 = computed( () => {
+  return regionsFor(provider1.value);
+});
+
+const regionOptions2 = computed( () => {
+  return regionsFor(provider2.value);
+});
+
+function findFilteredById(id) {
+  const found = filteredRecords.value.find( (record) => {
+    return record.id === id;
+  });
+  return found || null;
+}
+ 
+const skuRecord1 = computed( () => {
+  return findFilteredById(sku1.value);
+});
+ 
+const skuRecord2 = computed( () => {
+  return findFilteredById(sku2.value);
+});
 
 function matching(provider, region) {
-  if (!provider) return [];
-  return filteredRecords.value.filter(r => r.provider === provider && (!region || r.region === region));
+  if (!provider) {
+    return [];
+  }
+ 
+  return filteredRecords.value.filter( (record) => {
+    const providerMatches = record.provider === provider;
+    const regionMatches = !region || record.region === region;
+    return providerMatches && regionMatches;
+  });
 }
+
 function limitedOptions(list, selected) {
-  const sorted = [...list].sort((a, b) =>
-    a.skuName.localeCompare(b.skuName) || a.effective_price_hr - b.effective_price_hr);
-  const out = sorted.slice(0, SKU_OPTION_LIMIT);
-  if (selected && !out.includes(selected)) out.unshift(selected);   // never lose the current choice
-  return out;
+  const sorted = [...list].sort( (a, b) => {
+    const byName = a.skuName.localeCompare(b.skuName);
+    if (byName !== 0) {
+      return byName;
+    }
+    return a.effective_price_hr - b.effective_price_hr;
+  });
+ 
+  const limited = sorted.slice(0, SKU_OPTION_LIMIT);
+ 
+  if (selected && !limited.includes(selected)) {
+    limited.unshift(selected);
+  }
+ 
+  return limited;
 }
 
-const skuMatches1 = computed(() => matching(provider1.value, region1.value));
-const skuMatches2 = computed(() => matching(provider2.value, region2.value));
-const skuOptions1 = computed(() => limitedOptions(skuMatches1.value, skuRecord1.value));
-const skuOptions2 = computed(() => limitedOptions(skuMatches2.value, skuRecord2.value));
+const skuMatches1 = computed( () => {
+  return matching(provider1.value, region1.value);
+});
+ 
+const skuMatches2 = computed( () => {
+  return matching(provider2.value, region2.value);
+});
+ 
+const skuOptions1 = computed( () => {
+  return limitedOptions(skuMatches1.value, skuRecord1.value);
+});
+ 
+const skuOptions2 = computed( () => {
+  return limitedOptions(skuMatches2.value, skuRecord2.value);
+});
 
-const skuLabel = r => `${r.skuName} · ${r.region} · ${r.effective_price_hr.toFixed(4)}/hr`;
-
+function skuLabel(record) {
+  return `${record.skuName} · ${record.region} · ${record.effective_price_hr.toFixed(4)}/hr`;
+}
 //Scenario mode
 const presetNames = Object.keys(policyPresets);
+
 const scenarioPreset1 = ref(null);
 const scenarioPreset2 = ref(null);
 
-const weights1 = computed(() => policyPresets[scenarioPreset1.value] ?? DEFAULT_WEIGHTS);
-const weights2 = computed(() => policyPresets[scenarioPreset2.value] ?? DEFAULT_WEIGHTS);;
+const weights1 = computed( () => {
+  return policyPresets[scenarioPreset1.value] ?? DEFAULT_WEIGHTS;
+});
+ 
+const weights2 = computed( () => {
+  return policyPresets[scenarioPreset2.value] ?? DEFAULT_WEIGHTS;
+});
 
-const scoringPool = computed(() => filteredRecords.value.filter(r => r.vcpu_count != null && r.memory_gb != null));
+const scoringPool = computed( () => {
+  return filteredRecords.value.filter( (record) => {
+    return record.vcpu_count != null && record.memory_gb != null;
+  });
+});
+
 const { scored: scored1 } = useScenarioScoring(filteredRecords, SCENARIO_CRITERIA, weights1);
 const { scored: scored2 } = useScenarioScoring(filteredRecords, SCENARIO_CRITERIA, weights2);
 
-const scenarioRecord1 = computed(() => scenarioPreset1.value ? (scored1.value[0] ?? null): null);
-const scenarioRecord2 = computed(() => scenarioPreset2.value ? (scored2.value[0] ?? null): null);
-
-//Unified record1/record2 across both modes
-const record1 = computed(() => compareMode.value === 'scenario' ? scenarioRecord1.value : skuRecord1.value);
-const record2 = computed(() => compareMode.value === 'scenario' ? scenarioRecord2.value : skuRecord2.value);
-
-
-const noMatches = computed(() => {
-  if (compareMode.value === 'scenario'){
-    return !scoringPool.value.length;
+const scenarioRecord1 = computed( () => {
+  if (!scenarioPreset1.value) {
+    return null;
   }
-
-  return (!!provider1.value && !skuMatches1.value.length) || (!!provider2.value && !skuMatches2.value.length);
-});
-
-const sideLabels = computed(() => {
-  const a = record1.value, b = record2.value;
-  if (!a || !b) return ['', ''];
-  const same = a.provider === b.provider;
-  return [same ? `${a.provider} · ${a.region}` : a.provider, same ? `${b.provider} · ${b.region}` : b.provider];
+  return scored1.value[0] ?? null;
 });
  
-const comparabilityNotes = computed(() => {
-  const a = record1.value, b = record2.value;
-  if (!a || !b) return [];
-  const label = r => SUBCATEGORY_LABELS[r.subcategory] ?? r.subcategory;
+const scenarioRecord2 = computed( () => {
+  if (!scenarioPreset2.value) {
+    return null;
+  }
+  return scored2.value[0] ?? null;
+});
+
+//Unified record1/record2 across both modes
+const record1 = computed( () => {
+  if (compareMode.value === 'scenario') {
+    return scenarioRecord1.value;
+  }
+  return skuRecord1.value;
+});
+ 
+const record2 = computed( () => {
+  if (compareMode.value === 'scenario') {
+    return scenarioRecord2.value;
+  }
+  return skuRecord2.value;
+});
+
+const noMatches = computed( () => {
+  if (compareMode.value === 'scenario') {
+    return scoringPool.value.length === 0;
+  }
+ 
+  const sideAEmpty = !!provider1.value && skuMatches1.value.length === 0;
+  const sideBEmpty = !!provider2.value && skuMatches2.value.length === 0;
+  return sideAEmpty || sideBEmpty;
+});
+
+const sideLabels = computed( () => {
+  const a = record1.value;
+  const b = record2.value;
+ 
+  if (!a || !b) {
+    return ['', ''];
+  }
+ 
+  const sameProvider = a.provider === b.provider;
+ 
+  const labelA = sameProvider ? `${a.provider} · ${a.region}` : a.provider;
+  const labelB = sameProvider ? `${b.provider} · ${b.region}` : b.provider;
+  return [labelA, labelB];
+});
+ 
+function subcategoryLabel(record) {
+  return SUBCATEGORY_LABELS[record.subcategory] ?? record.subcategory;
+}
+ 
+function pricingModelLabel(model) {
+  return PRICING_MODEL_LABELS[model] ?? model;
+}
+
+const comparabilityNotes = computed( () => {
+  const a = record1.value;
+  const b = record2.value;
+ 
+  if (!a || !b) {
+    return [];
+  }
+ 
   const notes = [];
-  if (a.resource_type !== b.resource_type) notes.push(`Different resource types (${label(a)} vs ${label(b)}) - prices are not directly comparable.`);
-  if ((a.operating_system ?? null) !== (b.operating_system ?? null)) notes.push(`Different OS / license (${a.operating_system ?? 'n/a'} vs ${b.operating_system ?? 'n/a'}).`);
-  if (a.pricing_model !== b.pricing_model) notes.push(`Different pricing models (${PRICING_MODEL_LABELS[a.pricing_model] ?? a.pricing_model} vs ${PRICING_MODEL_LABELS[b.pricing_model] ?? b.pricing_model}).`);
-  if ((a.db_engine ?? null) !== (b.db_engine ?? null)) notes.push(`Different database engines (${a.db_engine ?? 'n/a'} vs ${b.db_engine ?? 'n/a'}).`);
-  if (a.deployment && b.deployment && a.deployment !== b.deployment) notes.push('Different deployment options (single vs multi-AZ).');
-  if (a.specs_inferred || b.specs_inferred) notes.push('Some specs are estimated, not published by the provider.');
+ 
+  if (a.resource_type !== b.resource_type) {
+    notes.push(
+      `Different resource types (${subcategoryLabel(a)} vs ${subcategoryLabel(b)}) - prices are not directly comparable.`
+    );
+  }
+ 
+  if ((a.operating_system ?? null) !== (b.operating_system ?? null)) {
+    notes.push(
+      `Different OS / license (${a.operating_system ?? 'n/a'} vs ${b.operating_system ?? 'n/a'}).`
+    );
+  }
+ 
+  if (a.pricing_model !== b.pricing_model) {
+    notes.push(
+      `Different pricing models (${pricingModelLabel(a.pricing_model)} vs ${pricingModelLabel(b.pricing_model)}).`
+    );
+  }
+ 
+  if ((a.db_engine ?? null) !== (b.db_engine ?? null)) {
+    notes.push(
+      `Different database engines (${a.db_engine ?? 'n/a'} vs ${b.db_engine ?? 'n/a'}).`
+    );
+  }
+ 
+  if (a.deployment && b.deployment && a.deployment !== b.deployment) {
+    notes.push('Different deployment options (single vs multi-AZ).');
+  }
+ 
+  if (a.specs_inferred || b.specs_inferred) {
+    notes.push('Some specs are estimated, not published by the provider.');
+  }
+ 
   return notes;
 });
 
-const chartRecords = computed(() =>
-  [record1.value, record2.value].filter(Boolean).map(r => ({
-    id: r.id,
-    name: r.skuName,
-    subtitle: `${r.provider} · ${r.region}`,
-    color: colorFor(r.provider),
-    vcpu_count: r.vcpu_count,
-    memory_gb: r.memory_gb,
-    effective_price_hr: r.effective_price_hr,
-    price_per_vcpu_hr: r.price_per_vcpu_hr,
-    data_quality_score: r.data_quality_score,
-  }))
-);
-
-const cards = computed(() => [
-  { key: 'A', rec: record1.value, preset: scenarioPreset1.value },
-  { key: 'B', rec: record2.value, preset: scenarioPreset2.value },
-].filter(c => c.rec));
-
-function onDomainChange() {
-  dbEngine.value = null;
-  subcategory.value = subcategoryOptions.value.includes(DEFAULT_SUBCATEGORY) ? DEFAULT_SUBCATEGORY : null;
-  resetSelection();
+function toChartRecord(record) {
+  return {
+    id: record.id,
+    name: record.skuName,
+    subtitle: `${record.provider} · ${record.region}`,
+    color: colorFor(record.provider),
+    vcpu_count: record.vcpu_count,
+    memory_gb: record.memory_gb,
+    effective_price_hr: record.effective_price_hr,
+    price_per_vcpu_hr: record.price_per_vcpu_hr,
+    data_quality_score: record.data_quality_score,
+  };
 }
+
+const chartRecords = computed( () => {
+  const chosen = [record1.value, record2.value].filter(Boolean);
+  return chosen.map(toChartRecord);
+});
+
+const cards = computed( () => {
+  const allCards = [
+    { key: 'A', rec: record1.value, preset: scenarioPreset1.value },
+    { key: 'B', rec: record2.value, preset: scenarioPreset2.value },
+  ];
+ 
+  return allCards.filter( (card) => {
+    return card.rec;
+  });
+});
 
 //Resets
 function resetSelection() {
@@ -164,17 +355,31 @@ function resetSelection() {
   scenarioPreset2.value = null;
 }
 
+function onDomainChange() {
+  dbEngine.value = null;
+ 
+  if (subcategoryOptions.value.includes(DEFAULT_SUBCATEGORY)) {
+    subcategory.value = DEFAULT_SUBCATEGORY;
+  } else {
+    subcategory.value = null;
+  }
+ 
+  resetSelection();
+}
+
 function resetFilters() {
   provider1.value = null;
   provider2.value = null;
   scenarioPreset1.value = null;
   scenarioPreset2.value = null;
+
   domain.value = null;
   subcategory.value = DEFAULT_SUBCATEGORY;
   regionGroup.value = null;
   operatingSystem.value = null;
   dbEngine.value = null;
   pricingModel.value = 'on_demand';
+  
   resetSelection();
 }
 

@@ -1,72 +1,134 @@
-// src/composables/useScenarioScoring.js
 import { computed } from 'vue';
 
-/**
- * Shared weighted MCDA scoring for pricing records.
- * Extracted from Evaluation.vue's inline logic so both Evaluation.vue
- * and compare.vue (scenario mode) score items the same way.
- *
- * @param {import('vue').Ref<Array>} items - reactive array of pricing records to score
- * @param {Array<{id:string,name:string,category:string,direction:'higher'|'lower'}>} criteria
- * @param {import('vue').Ref<Object>} categoryWeights - reactive { [category]: weight (0-1) }
- */
 export function useScenarioScoring(items, criteria, categoryWeights) {
   const categories = [...new Set(criteria.map(c => c.category))];
 
   function normalize(value, min, max, direction) {
-    if (value == null || min === max) return null;
-    const pct = (value - min) / (max - min);
-    const clamped = Math.max(0, Math.min(1, pct));
-    return direction === 'higher' ? clamped : 1 - clamped;
+    if (value == null || min === max) {
+      return null;
+    }
+
+    const fraction = (value - min) / (max - min);
+
+    const clamped = Math.max(0, Math.min(1, fraction));
+
+    if (direction === 'higher') {
+      return clamped;
+    }
+    return 1 - clamped;
   }
 
   const criteriaRanges = computed(() => {
     const ranges = {};
-    for (const c of criteria) {
-      const values = items.value.map(r => r[c.id]).filter(v => v != null);
-      ranges[c.id] = values.length
-        ? { min: Math.min(...values), max: Math.max(...values) }
-        : null;
+
+    for (const criterion of criteria) {
+      let min = Infinity;
+      let max = -Infinity;
+ 
+      for (const item of items.value) {
+        const value = item[criterion.id];
+ 
+        if (value == null) {
+          continue;
+        }
+ 
+        if (value < min) {
+          min = value;
+        }
+        if (value > max) {
+          max = value;
+        }
+      }
+ 
+      if (min <= max) {
+        ranges[criterion.id] = { min, max };
+      } else {
+        ranges[criterion.id] = null;
+      }
     }
+ 
     return ranges;
   });
 
-  const scored = computed(() => {
-    return items.value
-      .map(item => {
-        const breakdown = {};
-        for (const cat of categories) {
-          const catScores = criteria
-            .filter(c => c.category === cat)
-            .map(c => {
-              const range = criteriaRanges.value[c.id];
-              return range ? normalize(item[c.id], range.min, range.max, c.direction) : null;
-            })
-            .filter(s => s != null);
-          breakdown[cat] = catScores.length
-            ? catScores.reduce((a, b) => a + b, 0) / catScores.length
-            : null;
-        }
-        const totalWeight =
-          categories.reduce((sum, cat) => sum + (categoryWeights.value[cat] ?? 0), 0) || 1;
-        const score =
-          categories.reduce(
-            (sum, cat) => sum + (breakdown[cat] ?? 0) * (categoryWeights.value[cat] ?? 0),
-            0
-          ) / totalWeight;
-        return { ...item, breakdown, score };
-      })
-      .sort((a, b) => b.score - a.score);
+  function scoreCategory(item, category) {
+    const criteriaInCategory = criteria.filter( (criterion) => {
+      return criterion.category === category;
+    });
+ 
+    const scores = [];
+    for (const criterion of criteriaInCategory) {
+      const range = criteriaRanges.value[criterion.id];
+ 
+      if (!range) {
+        continue;
+      }
+ 
+      const score = normalize(item[criterion.id], range.min, range.max, criterion.direction);
+ 
+      if (score != null) {
+        scores.push(score);
+      }
+    }
+ 
+    if (scores.length === 0) {
+      return null;
+    }
+ 
+    let sum = 0;
+    for (const score of scores) {
+      sum += score;
+    }
+    return sum / scores.length;
+  }
+
+   const scored = computed( () => {
+    let totalWeight = 0;
+
+    for (const category of categories) {
+      totalWeight += categoryWeights.value[category] ?? 0;
+    }
+    if (totalWeight === 0) {
+      totalWeight = 1;
+    }
+ 
+    const results = [];
+ 
+    for (const item of items.value) {
+      const breakdown = {};
+      for (const category of categories) {
+        breakdown[category] = scoreCategory(item, category);
+      }
+ 
+
+      let weightedSum = 0;
+      for (const category of categories) {
+        const categoryScore = breakdown[category] ?? 0;
+        const weight = categoryWeights.value[category] ?? 0;
+        weightedSum += categoryScore * weight;
+      }
+      const score = weightedSum / totalWeight;
+ 
+      results.push({ ...item, breakdown, score });
+    }
+ 
+    results.sort(function (a, b) {
+      return b.score - a.score;
+    });
+ 
+    return results;
   });
 
-  /** Top-scoring item per provider — used by compare.vue's scenario matrix. */
-  const bestPerProvider = computed(() => {
+  const bestPerProvider = computed( () => {
     const best = {};
+ 
     for (const item of scored.value) {
-      if (!best[item.provider] || item.score > best[item.provider].score) {
+      const currentBest = best[item.provider];
+ 
+      if (!currentBest || item.score > currentBest.score) {
         best[item.provider] = item;
       }
     }
+ 
     return best;
   });
 

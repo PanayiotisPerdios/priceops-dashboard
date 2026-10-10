@@ -26,37 +26,92 @@ const maxPrice = ref(null);
 const search = ref('');
 const onlyKnownSpecs = ref(false);
 
-const inDomain = computed(() => records.value.filter(r => !domain.value || r.domain === domain.value));
-const subcategoryOptions = computed(() => uniqSorted(inDomain.value.map(r => r.subcategory)));
-const engineOptions = computed(() => uniqSorted(inDomain.value.map(r => r.db_engine)));
+const inDomain = computed( () => {
+  return records.value.filter( (record) => {
+    return !domain.value || record.domain === domain.value;
+  });
+});
 
-const regionOptions = computed(() => uniqSorted(
-  inDomain.value
-    .filter(r => (!provider.value || r.provider === provider.value) &&
-                 (!regionGroup.value || r.region_group === regionGroup.value))
-    .map(r => r.region)
-));
+const subcategoryOptions = computed( () => {
+  return uniqSorted(inDomain.value.map( (record) => {
+    return record.subcategory;
+  }));
+});
 
-const filteredRecords = computed(() => {
-  const q = search.value.trim().toLowerCase();
-  const vcpu = Number(minVcpu.value) || 0;
-  const mem = Number(minMemory.value) || 0;
-  const price = Number(maxPrice.value) || 0;
-  return records.value.filter(r =>
-    (!provider.value || r.provider === provider.value) &&
-    (!domain.value || r.domain === domain.value) &&
-    (!subcategory.value || r.subcategory === subcategory.value) &&
-    (!regionGroup.value || r.region_group === regionGroup.value) &&
-    (!region.value || r.region === region.value) &&
-    (!operatingSystem.value || r.operating_system === operatingSystem.value) &&
-    (!dbEngine.value || r.db_engine === dbEngine.value) &&
-    (!pricingModel.value || r.pricing_model === pricingModel.value) &&
-    (!vcpu || (r.vcpu_count ?? 0) >= vcpu) &&
-    (!mem || (r.memory_gb ?? 0) >= mem) &&
-    (!price || r.effective_price_hr <= price) &&
-    (!onlyKnownSpecs.value || (r.vcpu_count != null && r.memory_gb != null)) &&
-    (!q || r.skuName.toLowerCase().includes(q))
-  );
+const engineOptions = computed( () => {
+  return uniqSorted(inDomain.value.map( (record) => {
+    return record.db_engine;
+  }));
+});
+
+const regionOptions = computed( () => {
+  const matchingRecords = inDomain.value.filter( (record) => {
+    const providerMatches = !provider.value || record.provider === provider.value;
+    const areaMatches = !regionGroup.value || record.region_group === regionGroup.value;
+    return providerMatches && areaMatches;
+  });
+ 
+  return uniqSorted(matchingRecords.map( (record) => {
+    return record.region;
+  }));
+});
+
+const filteredRecords = computed(function () {
+  const searchText = search.value.trim().toLowerCase();
+ 
+  // Number inputs may be null or '' -> treat as 0, which means "no limit"
+  const minVcpuValue = Number(minVcpu.value) || 0;
+  const minMemoryValue = Number(minMemory.value) || 0;
+  const maxPriceValue = Number(maxPrice.value) || 0;
+ 
+  return records.value.filter(function (record) {
+    if (provider.value && record.provider !== provider.value) {
+      return false;
+    }
+    if (domain.value && record.domain !== domain.value) {
+      return false;
+    }
+    if (subcategory.value && record.subcategory !== subcategory.value) {
+      return false;
+    }
+    if (regionGroup.value && record.region_group !== regionGroup.value) {
+      return false;
+    }
+    if (region.value && record.region !== region.value) {
+      return false;
+    }
+    if (operatingSystem.value && record.operating_system !== operatingSystem.value) {
+      return false;
+    }
+    if (dbEngine.value && record.db_engine !== dbEngine.value) {
+      return false;
+    }
+    if (pricingModel.value && record.pricing_model !== pricingModel.value) {
+      return false;
+    }
+ 
+    // Unknown vCPU / memory count as 0, so they fail any minimum
+    if (minVcpuValue && (record.vcpu_count ?? 0) < minVcpuValue) {
+      return false;
+    }
+    if (minMemoryValue && (record.memory_gb ?? 0) < minMemoryValue) {
+      return false;
+    }
+ 
+    if (maxPriceValue && record.effective_price_hr > maxPriceValue) {
+      return false;
+    }
+ 
+    if (onlyKnownSpecs.value && (record.vcpu_count == null || record.memory_gb == null)) {
+      return false;
+    }
+ 
+    if (searchText && !record.skuName.toLowerCase().includes(searchText)) {
+      return false;
+    }
+ 
+    return true;
+  });
 });
 
 const COLUMNS = [
@@ -78,76 +133,148 @@ const sortDir = ref('asc');
 const page = ref(1);
 
 function sortBy(key) {
-  if (sortKey.value === key) sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
-  else { sortKey.value = key; sortDir.value = 'asc'; }
+  if (sortKey.value === key) {
+    sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
+  } else {
+    sortKey.value = key;
+    sortDir.value = 'asc';
+  }
 }
 
-const sortedRecords = computed(() => {
-  const k = sortKey.value;
-  const dir = sortDir.value === 'asc' ? 1 : -1;
-  return [...filteredRecords.value].sort((a, b) => {
-    const x = a[k], y = b[k];
-    if (x == null && y == null) return 0;
-    if (x == null) return 1;          // empty values always last
-    if (y == null) return -1;
-    const diff = typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y));
-    return diff * dir;
+const sortedRecords = computed( () => {
+  const key = sortKey.value;
+  const direction = sortDir.value === 'asc' ? 1 : -1;
+ 
+  return [...filteredRecords.value].sort( (a, b) => {
+    const x = a[key];
+    const y = b[key];
+ 
+    if (x == null && y == null) {
+      return 0;
+    }
+    if (x == null) {
+      return 1;
+    }
+    if (y == null) {
+      return -1;
+    }
+ 
+    let difference;
+    if (typeof x === 'number' && typeof y === 'number') {
+      difference = x - y;
+    } else {
+      difference = String(x).localeCompare(String(y));
+    }
+ 
+    return difference * direction;
   });
 });
 
-const totalPages = computed(() => Math.max(1, Math.ceil(sortedRecords.value.length / TABLE_PAGE_SIZE)));
+const totalPages = computed( () => {
+  return Math.max(1, Math.ceil(sortedRecords.value.length / TABLE_PAGE_SIZE));
+});
+
 const pageRows = computed(() => {
   const start = (page.value - 1) * TABLE_PAGE_SIZE;
   return sortedRecords.value.slice(start, start + TABLE_PAGE_SIZE);
 });
 
-watch([filteredRecords, sortKey, sortDir], () => { page.value = 1; });
+watch([filteredRecords, sortKey, sortDir], () => {
+  page.value = 1;
+});
 
-
-const rangeStart = computed(() => (sortedRecords.value.length ? (page.value - 1) * TABLE_PAGE_SIZE + 1 : 0));
-const rangeEnd = computed(() => Math.min(page.value * TABLE_PAGE_SIZE, sortedRecords.value.length));
+const rangeStart = computed( () => {
+  if (sortedRecords.value.length === 0) {
+    return 0;
+  }
+  return (page.value - 1) * TABLE_PAGE_SIZE + 1;
+});
+ 
+const rangeEnd = computed( () => {
+  return Math.min(page.value * TABLE_PAGE_SIZE, sortedRecords.value.length);
+});
 
 function qualityClass(score) {
-  if (score >= 90) return 'q-high';
-  if (score >= 70) return 'q-mid';
+  if (score >= 90) {
+    return 'q-high';
+  }
+  if (score >= 70) {
+    return 'q-mid';
+  }
   return 'q-low';
 }
 
-const providerStats = computed(() => {
+const providerStats = computed( () => {
   const groups = new Map();
-  for (const r of filteredRecords.value) {
-    if (!groups.has(r.provider)) groups.set(r.provider, []);
-    groups.get(r.provider).push(r);
+ 
+  for (const record of filteredRecords.value) {
+    if (!groups.has(record.provider)) {
+      groups.set(record.provider, []);
+    }
+    groups.get(record.provider).push(record);
   }
-  return [...groups].map(([name, rows]) => {
-    const prices = rows.map(r => r.effective_price_hr).sort((a, b) => a - b);
-    const cheapest = rows.reduce((m, r) => (r.effective_price_hr < m.effective_price_hr ? r : m), rows[0]);
-    const withVcpu = rows.map(r => r.price_per_vcpu_hr).filter(v => v != null).sort((a, b) => a - b);
-    return {
+ 
+  const stats = [];
+ 
+  for (const [name, rows] of groups) {
+
+    const prices = rows
+      .map( (row) => {
+        return row.effective_price_hr;
+      })
+      .sort( (a, b) => {
+        return a - b;
+      });
+ 
+    let cheapest = rows[0];
+    for (const row of rows) {
+      if (row.effective_price_hr < cheapest.effective_price_hr) {
+        cheapest = row;
+      }
+    }
+ 
+    const perVcpuPrices = rows
+      .map( (row) => {
+        return row.price_per_vcpu_hr;
+      })
+      .filter( (value) => {
+        return value != null;
+      })
+      .sort( (a, b) => {
+        return a - b;
+      });
+ 
+    stats.push({
       provider: name,
       count: rows.length,
       min: prices[0],
       median: median(prices),
       max: prices[prices.length - 1],
-      medianPerVcpu: median(withVcpu),
-      cheapest,
-    };
-  });
+      medianPerVcpu: median(perVcpuPrices),
+      cheapest: cheapest,
+    });
+  }
+ 
+  return stats;
 });
 
-const chartRecords = computed(() =>
-  sortedRecords.value.slice(0, CHART_LIMIT).map(r => ({
-    id: r.id,
-    name: r.skuName,
-    subtitle: `${r.provider} · ${r.region}`,
-    color: colorFor(r.provider),
-    vcpu_count: r.vcpu_count,
-    memory_gb: r.memory_gb,
-    effective_price_hr: r.effective_price_hr,
-    price_per_vcpu_hr: r.price_per_vcpu_hr,
-    data_quality_score: r.data_quality_score,
-  }))
-);
+function toChartRecord(record) {
+  return {
+    id: record.id,
+    name: record.skuName,
+    subtitle: `${record.provider} · ${record.region}`,
+    color: colorFor(record.provider),
+    vcpu_count: record.vcpu_count,
+    memory_gb: record.memory_gb,
+    effective_price_hr: record.effective_price_hr,
+    price_per_vcpu_hr: record.price_per_vcpu_hr,
+    data_quality_score: record.data_quality_score,
+  };
+}
+
+const chartRecords = computed( () => {
+  return sortedRecords.value.slice(0, CHART_LIMIT).map(toChartRecord);
+});
 
 // RESETS
 function onDomainChange() {
@@ -172,25 +299,27 @@ function resetFilters() {
 }
 
 function buildExportRows() {
-  return sortedRecords.value.map(r => ({
-    provider: r.provider,
-    domain: r.domain,
-    resource_type: r.resource_type,
-    sku: r.skuName,
-    region: r.region,
-    region_group: r.region_group,
-    operating_system: r.operating_system,
-    db_engine: r.db_engine,
-    deployment: r.deployment,
-    pricing_model: r.pricing_model,
-    vcpu_count: r.vcpu_count,
-    memory_gb: r.memory_gb,
-    specs_estimated: r.specs_inferred,
-    effective_price_hr: r.effective_price_hr,
-    price_per_vcpu_hr: r.price_per_vcpu_hr,
-    price_per_gb_hr: r.price_per_gb_hr,
-    data_quality_score: r.data_quality_score,
-  }));
+  return sortedRecords.value.map( (record) => {
+    return {
+      provider: record.provider,
+      domain: record.domain,
+      resource_type: record.resource_type,
+      sku: record.skuName,
+      region: record.region,
+      region_group: record.region_group,
+      operating_system: record.operating_system,
+      db_engine: record.db_engine,
+      deployment: record.deployment,
+      pricing_model: record.pricing_model,
+      vcpu_count: record.vcpu_count,
+      memory_gb: record.memory_gb,
+      specs_estimated: record.specs_inferred,
+      effective_price_hr: record.effective_price_hr,
+      price_per_vcpu_hr: record.price_per_vcpu_hr,
+      price_per_gb_hr: record.price_per_gb_hr,
+      data_quality_score: record.data_quality_score,
+    };
+  });
 }
 
 function exportCSV() {

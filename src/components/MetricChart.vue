@@ -18,10 +18,16 @@ ChartJS.register(
 const crosshairPlugin = {
   id: 'crosshair',
   afterDraw(chart) {
-    const active = chart.tooltip?._active;
-    if (!active?.length || !chart.scales?.y) return;
+    const activeElements = chart.tooltip?._active;
+ 
+    // Nothing hovered, or this chart has no y-scale (e.g. Pie/Radar) -> draw nothing
+    if (!activeElements?.length || !chart.scales?.y) {
+      return;
+    }
+ 
     const { ctx, chartArea } = chart;
-    const x = active[0].element.x;
+    const x = activeElements[0].element.x;
+ 
     ctx.save();
     ctx.beginPath();
     ctx.moveTo(x, chartArea.top);
@@ -31,49 +37,83 @@ const crosshairPlugin = {
     ctx.setLineDash([4, 4]);
     ctx.stroke();
     ctx.restore();
-  }
+  },
 };
 ChartJS.register(crosshairPlugin);
 
 const props = defineProps({
   // Records to visualize: [{ id, name, color, ...numeric fields }]
   records: { type: Array, required: true },
+ 
   // Plottable numeric fields: [{ id: 'effective_price_hr', name: 'Price / hr' }, ...]
-  columns: { type: Array, default: () => [] },
+  columns: {
+    type: Array,
+    default: function () {
+      return [];
+    },
+  },
 });
 
 const emit = defineEmits(['select']);
 
+const CHART_TYPES = ['Bar', 'Line', 'Pie', 'Radar', 'Scatter'];
+
 const visualizationType = ref('Bar');
+
 const subfieldType = ref(props.columns[0]?.id ?? null);
+
 const xField = ref(props.columns[0]?.id ?? null);
 const yField = ref(props.columns[1]?.id ?? props.columns[0]?.id ?? null);
+
 const sortDir = ref('asc'); // 'asc' | 'desc' | 'name'
 const showExtremes = ref(true);
 const showAverage = ref(false);
 const selectedId = ref(null);
 const chartRef = ref(null);
 
-const CHART_TYPES = ['Bar', 'Line', 'Pie', 'Radar', 'Scatter'];
-const isCartesian = computed(() => visualizationType.value === 'Bar');
-const isMultiMetric = computed(() => ['Line', 'Radar'].includes(visualizationType.value));
+const isCartesian = computed(function () {
+  return visualizationType.value === 'Bar';
+});
 
-const chartComponent = computed(() => {
+const isMultiMetric = computed(function () {
+  return ['Line', 'Radar'].includes(visualizationType.value);
+});
+
+const chartComponent = computed(function () {
   switch (visualizationType.value) {
-    case 'Line': return Line;
-    case 'Pie': return Pie;
-    case 'Radar': return Radar;
-    case 'Scatter': return Scatter;
+    case 'Line':
+      return Line;
+    case 'Pie':
+      return Pie;
+    case 'Radar':
+      return Radar;
+    case 'Scatter':
+      return Scatter;
     case 'Bar':
-    default: return Bar;
+    default:
+      return Bar;
   }
+});
+
+const selectedRecord = computed(function () {
+  return props.records.find(function (record) {
+    return record.id === selectedId.value;
+  });
 });
 
 const PALETTE = ['#4ade80', '#1e44b9', '#ca309e', '#f59e0b', '#6366f1', '#f97316'];
 const HIGHLIGHT = '#fbbf24';
+const SELECTED = '#ffffff';
 
 function colorFor(index) {
   return props.records[index]?.color || PALETTE[index % PALETTE.length];
+}
+
+function displayColorFor(record, index) {
+  if (record.id === selectedId.value) {
+    return SELECTED;
+  }
+  return colorFor(index);
 }
 
 function valueFor(record, fieldId) {
@@ -81,77 +121,184 @@ function valueFor(record, fieldId) {
 }
 
 function fieldName(fieldId) {
-  return props.columns.find(c => c.id === fieldId)?.name ?? fieldId;
+  const column = props.columns.find(function (c) {
+    return c.id === fieldId;
+  });
+  return column?.name ?? fieldId;
 }
 
 const PX_PER_BAR = 32;
 const MAX_LEGEND_ITEMS = 12;
-const isLarge = computed(() => props.records.length > 20);
+const isLarge = computed(function () {
+  return props.records.length > 20;
+});
 
 // Bar gets a minimum width per bar; the wrapper scrolls horizontally instead of squashing
-const canvasWrapStyle = computed(() => {
-  if (visualizationType.value !== 'Bar') return {};
+const canvasWrapStyle = computed(function () {
+  if (visualizationType.value !== 'Bar') {
+    return {};
+  }
   return { width: `max(100%, ${props.records.length * PX_PER_BAR}px)` };
 });
 
-const showLegend = computed(() => {
-  if (visualizationType.value === 'Bar' || visualizationType.value === 'Scatter') return true;
-  return props.records.length <= MAX_LEGEND_ITEMS; // Line / Radar / Pie
+const showLegend = computed(function () {
+  // Bar and Scatter always show it
+  if (visualizationType.value === 'Bar' || visualizationType.value === 'Scatter') {
+    return true;
+  }
+  // Line / Radar / Pie: only when it won't be overwhelming
+  return props.records.length <= MAX_LEGEND_ITEMS;
 });
 
-function truncate(label, n = 18) {
-  const s = String(label ?? '');
-  return s.length > n ? s.slice(0, n - 1) + '…' : s;
+function truncate(label, maxLength = 18) {
+  const text = String(label ?? '');
+
+  if (text.length > maxLength) {
+    return text.slice(0, maxLength - 1) + '…';
+  }
+  return text;
 }
 
-// Bar/Line share a sortable view of the records so "trend" charts read meaningfully
-const sortedRecords = computed(() => {
-  const arr = [...props.records];
+const sortedRecords = computed(function () {
+  const records = [...props.records];
+ 
   if (sortDir.value === 'name') {
-    return arr.sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''));
+    return records.sort(function (a, b) {
+      return (a.name ?? '').localeCompare(b.name ?? '');
+    });
   }
-  return arr.sort((a, b) => {
-    const av = valueFor(a, subfieldType.value) ?? 0;
-    const bv = valueFor(b, subfieldType.value) ?? 0;
-    return sortDir.value === 'asc' ? av - bv : bv - av;
+ 
+  return records.sort(function (a, b) {
+    const aValue = valueFor(a, subfieldType.value) ?? 0;
+    const bValue = valueFor(b, subfieldType.value) ?? 0;
+ 
+    if (sortDir.value === 'asc') {
+      return aValue - bValue;
+    }
+    return bValue - aValue;
   });
 });
 
 function extremesOf(values) {
-  const valid = values.map((v, i) => [v, i]).filter(([v]) => v != null);
-  if (!valid.length) return { min: -1, max: -1 };
-  let min = valid[0], max = valid[0];
-  for (const pair of valid) {
-    if (pair[0] < min[0]) min = pair;
-    if (pair[0] > max[0]) max = pair;
+  const valid = [];
+  values.forEach(function (value, index) {
+    if (value != null) {
+      valid.push([value, index]);
+    }
+  });
+ 
+  if (valid.length === 0) {
+    return { min: -1, max: -1 };
   }
+ 
+  let min = valid[0];
+  let max = valid[0];
+ 
+  for (const pair of valid) {
+    if (pair[0] < min[0]) {
+      min = pair;
+    }
+    if (pair[0] > max[0]) {
+      max = pair;
+    }
+  }
+ 
   return { min: min[1], max: max[1] };
 }
 
-const indexById = computed(() => new Map(props.records.map((r, i) => [r.id, i])));
+const indexById = computed(function () {
+  const map = new Map();
+  props.records.forEach(function (record, index) {
+    map.set(record.id, index);
+  });
+  return map;
+});
 
+function computeFieldRanges() {
+  const ranges = {};
+ 
+  for (const field of props.columns) {
+    const values = [];
+    for (const record of props.records) {
+      const value = valueFor(record, field.id);
+      if (value != null) {
+        values.push(value);
+      }
+    }
+ 
+    if (values.length > 0) {
+      ranges[field.id] = { min: Math.min(...values), max: Math.max(...values) };
+    } else {
+      ranges[field.id] = null;
+    }
+  }
+ 
+  return ranges;
+}
+
+function normalizeToPercent(ranges, fieldId, value, valueWhenMissing) {
+  const range = ranges[fieldId];
+ 
+  if (value == null || !range) {
+    return valueWhenMissing;
+  }
+  if (range.max === range.min) {
+    return 100;
+  }
+  return ((value - range.min) / (range.max - range.min)) * 100;
+}
+
+function barColorFor(record, position, minIndex, maxIndex) {
+  if (record.id === selectedId.value) {
+    return SELECTED;
+  }
+ 
+  const isExtreme = position === minIndex || position === maxIndex;
+  if (showExtremes.value && isExtreme) {
+    return HIGHLIGHT;
+  }
+ 
+  return colorFor(indexById.value.get(record.id));
+}
+ 
 function buildBarDataset() {
-  const recs = sortedRecords.value;
-  const values = recs.map(r => valueFor(r, subfieldType.value));
+  const records = sortedRecords.value;
+  const values = records.map(function (record) {
+    return valueFor(record, subfieldType.value);
+  });
+ 
   const { min, max } = extremesOf(values);
-  const validValues = values.filter(v => v != null);
-  const avg = validValues.length ? validValues.reduce((a, b) => a + b, 0) / validValues.length : 0;
-
+ 
+  // Average of the values that exist (0 if none)
+  const validValues = values.filter(function (v) {
+    return v != null;
+  });
+  let average = 0;
+  if (validValues.length > 0) {
+    const total = validValues.reduce(function (a, b) {
+      return a + b;
+    }, 0);
+    average = total / validValues.length;
+  }
+ 
   const datasets = [{
     label: fieldName(subfieldType.value),
     data: values,
-    backgroundColor: recs.map((r, i) =>
-      r.id === selectedId.value ? '#ffffff' : (showExtremes.value && (i === min || i === max)) ? HIGHLIGHT : colorFor(indexById.value.get(r.id))
-    ),
+    backgroundColor: records.map(function (record, position) {
+      return barColorFor(record, position, min, max);
+    }),
     maxBarThickness: 90,
     order: 1,
   }];
-
+ 
+  // Optional dashed average line drawn over the bars
   if (showAverage.value) {
     datasets.push({
       type: 'line',
       label: 'Average',
-      data: recs.map(() => avg),
+      data: records.map(function () {
+        return average;
+      }),
       borderColor: 'rgba(255,255,255,0.6)',
       borderDash: [6, 4],
       borderWidth: 1,
@@ -160,212 +307,330 @@ function buildBarDataset() {
       order: 0,
     });
   }
-
-  return { labels: recs.map(r => r.name ?? r.id), datasets };
-}
-
-// Multi-metric profile per record — same normalization Radar uses, so the shared
-// x-axis (fields) is comparable across units. Legend = record/provider name.
-function buildLineDataset() {
-  const ranges = {};
-  props.columns.forEach(field => {
-    const vals = props.records.map(r => valueFor(r, field.id)).filter(v => v != null);
-    ranges[field.id] = vals.length ? { min: Math.min(...vals), max: Math.max(...vals) } : null;
-  });
-  function normalize(fieldId, value) {
-    const range = ranges[fieldId];
-    if (value == null || !range) return null;
-    if (range.max === range.min) return 100;
-    return ((value - range.min) / (range.max - range.min)) * 100;
-  }
-
+ 
   return {
-    labels: props.columns.map(f => f.name),
-    datasets: props.records.map((record, i) => ({
-      label: record.name ?? record.id,
-      data: props.columns.map(field => normalize(field.id, valueFor(record, field.id))),
-      borderColor: record.id === selectedId.value ? '#ffffff' : colorFor(i),
-      backgroundColor: (record.id === selectedId.value ? '#ffffff' : colorFor(i)) + '33',
-      borderWidth: record.id === selectedId.value ? 3 : 2,
-      pointRadius: 4,
-      tension: 0.25,
-      fill: false,
-    })),
+    labels: records.map(function (record) {
+      return record.name ?? record.id;
+    }),
+    datasets: datasets,
   };
 }
-
+ 
+function buildLineDataset() {
+  const ranges = computeFieldRanges();
+ 
+  return {
+    labels: props.columns.map(function (field) {
+      return field.name;
+    }),
+    datasets: props.records.map(function (record, index) {
+      const isSelected = record.id === selectedId.value;
+      const color = displayColorFor(record, index);
+ 
+      return {
+        label: record.name ?? record.id,
+        data: props.columns.map(function (field) {
+          return normalizeToPercent(ranges, field.id, valueFor(record, field.id), null);
+        }),
+        borderColor: color,
+        backgroundColor: color + '33',   // same color, ~20% opacity
+        borderWidth: isSelected ? 3 : 2,
+        pointRadius: 4,
+        tension: 0.25,
+        fill: false,
+      };
+    }),
+  };
+}
+ 
 function buildPieDataset() {
   return {
-    labels: props.records.map(r => r.name ?? r.id),
+    labels: props.records.map(function (record) {
+      return record.name ?? record.id;
+    }),
     datasets: [{
       label: fieldName(subfieldType.value),
-      data: props.records.map(r => valueFor(r, subfieldType.value)),
-      backgroundColor: props.records.map((r, i) => r.id === selectedId.value ? '#ffffff' : colorFor(i)),
+      data: props.records.map(function (record) {
+        return valueFor(record, subfieldType.value);
+      }),
+      backgroundColor: props.records.map(function (record, index) {
+        return displayColorFor(record, index);
+      }),
     }],
   };
 }
-
+ 
 function buildScatterDataset() {
+  // One point per record that has BOTH an x and a y value
+  const points = [];
+  for (const record of props.records) {
+    const x = valueFor(record, xField.value);
+    const y = valueFor(record, yField.value);
+ 
+    if (x != null && y != null) {
+      points.push({ x: x, y: y, _label: record.name ?? record.id, _id: record.id });
+    }
+  }
+ 
   return {
     datasets: [{
       label: `${fieldName(xField.value)} vs ${fieldName(yField.value)}`,
-      data: props.records
-        .map((r, i) => ({ x: valueFor(r, xField.value), y: valueFor(r, yField.value), _label: r.name ?? r.id, _id: r.id }))
-        .filter(p => p.x != null && p.y != null),
-      backgroundColor: props.records.map((r, i) => r.id === selectedId.value ? '#ffffff' : colorFor(i)),
-      pointRadius: (ctx) => ctx.raw?._id === selectedId.value ? 9 : 6,
+      data: points,
+      // NOTE: colors are indexed by position in props.records, not by position in `points`
+      backgroundColor: props.records.map(function (record, index) {
+        return displayColorFor(record, index);
+      }),
+      // Selected point is drawn larger
+      pointRadius: function (context) {
+        if (context.raw?._id === selectedId.value) {
+          return 9;
+        }
+        return 6;
+      },
     }],
   };
 }
-
+ 
+// One polygon per record across all fields (normalized 0-100).
+// Missing values count as 0.
 function buildRadarDataset() {
-  const ranges = {};
-  props.columns.forEach(field => {
-    const vals = props.records.map(r => valueFor(r, field.id)).filter(v => v != null);
-    ranges[field.id] = vals.length ? { min: Math.min(...vals), max: Math.max(...vals) } : null;
-  });
-  function normalize(fieldId, value) {
-    const range = ranges[fieldId];
-    if (value == null || !range) return 0;
-    if (range.max === range.min) return 100;
-    return ((value - range.min) / (range.max - range.min)) * 100;
-  }
+  const ranges = computeFieldRanges();
+ 
   return {
-    labels: props.columns.map(f => f.name),
-    datasets: props.records.map((record, i) => ({
-      label: record.name ?? record.id,
-      data: props.columns.map(field => normalize(field.id, valueFor(record, field.id))),
-      borderColor: record.id === selectedId.value ? '#ffffff' : colorFor(i),
-      backgroundColor: (record.id === selectedId.value ? '#ffffff' : colorFor(i)) + '2a',
-      pointBackgroundColor: record.id === selectedId.value ? '#ffffff' : colorFor(i),
-      borderWidth: record.id === selectedId.value ? 3 : 1.5,
-    })),
+    labels: props.columns.map(function (field) {
+      return field.name;
+    }),
+    datasets: props.records.map(function (record, index) {
+      const isSelected = record.id === selectedId.value;
+      const color = displayColorFor(record, index);
+ 
+      return {
+        label: record.name ?? record.id,
+        data: props.columns.map(function (field) {
+          return normalizeToPercent(ranges, field.id, valueFor(record, field.id), 0);
+        }),
+        borderColor: color,
+        backgroundColor: color + '2a',   // same color, ~16% opacity
+        pointBackgroundColor: color,
+        borderWidth: isSelected ? 3 : 1.5,
+      };
+    }),
   };
 }
-
-const chartData = computed(() => {
-  if (visualizationType.value === 'Radar') return buildRadarDataset();
-  if (visualizationType.value === 'Line') return buildLineDataset();
-  if (visualizationType.value === 'Pie') return buildPieDataset();
-  if (visualizationType.value === 'Scatter') return buildScatterDataset();
-  return buildBarDataset();
-});
-
-function handleChartClick(event, elements) {
-  if (!elements?.length) return;
-  const el = elements[0];
-  let record = null;
-  if (visualizationType.value === 'Scatter') {
-    const point = chartData.value.datasets[el.datasetIndex]?.data[el.index];
-    record = props.records.find(r => r.id === point?._id);
-  } else if (visualizationType.value === 'Bar') {
-    record = sortedRecords.value[el.index];
-  } else if (visualizationType.value === 'Pie') {
-    record = props.records[el.index];
-  } else if (visualizationType.value === 'Line' || visualizationType.value === 'Radar') {
-    record = props.records[el.datasetIndex];
+ 
+// Pick the right builder for the current chart type
+const chartData = computed(function () {
+  switch (visualizationType.value) {
+    case 'Radar':
+      return buildRadarDataset();
+    case 'Line':
+      return buildLineDataset();
+    case 'Pie':
+      return buildPieDataset();
+    case 'Scatter':
+      return buildScatterDataset();
+    default:
+      return buildBarDataset();
   }
-  if (!record) return;
-  selectedId.value = selectedId.value === record.id ? null : record.id;
+});
+ 
+function handleChartClick(event, elements) {
+  if (!elements?.length) {
+    return;
+  }
+ 
+  const clicked = elements[0];
+  let record = null;
+ 
+  // What a click "means" depends on how each chart type lays out its data
+  switch (visualizationType.value) {
+    case 'Scatter': {
+      // Each point carries its record id
+      const point = chartData.value.datasets[clicked.datasetIndex]?.data[clicked.index];
+      record = props.records.find(function (r) {
+        return r.id === point?._id;
+      });
+      break;
+    }
+    case 'Bar':
+      // Bars follow the sorted order
+      record = sortedRecords.value[clicked.index];
+      break;
+    case 'Pie':
+      record = props.records[clicked.index];
+      break;
+    case 'Line':
+    case 'Radar':
+      // One dataset per record
+      record = props.records[clicked.datasetIndex];
+      break;
+  }
+ 
+  if (!record) {
+    return;
+  }
+ 
+  // Clicking the selected record again deselects it
+  if (selectedId.value === record.id) {
+    selectedId.value = null;
+  } else {
+    selectedId.value = record.id;
+  }
+ 
   emit('select', selectedId.value ? record : null);
 }
+ 
+function interactionOptions() {
+  const type = visualizationType.value;
+ 
+  if (type === 'Radar' || type === 'Pie') {
+    return {};
+  }
+  if (type === 'Scatter') {
+    return { mode: 'nearest', intersect: true };
+  }
+  // Bar and Line: highlight everything at the hovered x position
+  return { mode: 'index', intersect: false };
+}
+ 
 
-const chartOptions = computed(() => {
-  const isRadar = visualizationType.value === 'Radar';
-  const isPie = visualizationType.value === 'Pie';
-  const isScatter = visualizationType.value === 'Scatter';
-  const isLine = visualizationType.value === 'Line';
+function onLegendClick(event, legendItem, legend) {
+  const chart = legend.chart;
+  const index = legendItem.datasetIndex;
+ 
+  if (event.native?.shiftKey) {
+    chart.data.datasets.forEach(function (_dataset, i) {
+      chart.getDatasetMeta(i).hidden = i !== index;
+    });
+  } else {
+    const meta = chart.getDatasetMeta(index);
+    if (meta.hidden === null) {
+      meta.hidden = !chart.data.datasets[index].hidden;
+    } else {
+      meta.hidden = !meta.hidden;
+    }
+  }
+ 
+  chart.update();
+}
+ 
+function tooltipLabel(context) {
+  const type = visualizationType.value;
+ 
+  if (type === 'Pie') {
+    const total = context.dataset.data.reduce(function (a, b) {
+      return a + b;
+    }, 0);
+    const percent = total ? ((context.parsed / total) * 100).toFixed(1) : '0.0';
+    return `${context.label}: ${context.parsed} (${percent}%)`;
+  }
+ 
+  if (type === 'Scatter') {
+    return `${context.raw._label}: (${context.raw.x}, ${context.raw.y})`;
+  }
+ 
+  if (type === 'Line') {
+    return `${context.dataset.label}: ${context.parsed.y?.toFixed(1)}%`;
+  }
+ 
+  return undefined;
+}
+ 
 
+function xTickLabel(value) {
+  return truncate(this.getLabelForValue(value));
+}
+ 
+function scaleOptions() {
+  const type = visualizationType.value;
+  const isScatter = type === 'Scatter';
+ 
+  // Pie has no axes
+  if (type === 'Pie') {
+    return {};
+  }
+ 
+  // Radar has a single radial axis
+  if (type === 'Radar') {
+    return {
+      r: {
+        angleLines: { color: 'rgba(255,255,255,0.12)' },
+        grid: { color: 'rgba(255,255,255,0.12)' },
+        pointLabels: { color: '#e5e7ea' },
+        ticks: { display: false, backdropColor: 'transparent' },
+      },
+    };
+  }
+ 
+  // Bar, Line and Scatter: normal x / y axes
+  return {
+    x: {
+      type: isScatter ? 'linear' : 'category',
+      title: isScatter ? { display: true, text: fieldName(xField.value), color: 'white' } : undefined,
+      ticks: {
+        color: 'white',
+        autoSkip: !isLarge.value,
+        maxRotation: isLarge.value ? 90 : 45,
+        minRotation: isLarge.value ? 90 : 0,
+        callback: isScatter ? undefined : xTickLabel,
+      },
+    },
+    y: {
+      title: isScatter ? { display: true, text: fieldName(yField.value), color: 'white' } : undefined,
+      ticks: { color: 'white' },
+    },
+  };
+}
+ 
+const chartOptions = computed(function () {
+  // Skip animation for big datasets to keep it responsive
+  let animation = { duration: 700, easing: 'easeOutQuart' };
+  if (props.records.length > 150) {
+    animation = false;
+  }
+ 
   return {
     responsive: true,
     maintainAspectRatio: false,
-    animation: props.records.length > 150 ? false : { duration: 700, easing: 'easeOutQuart' },
+    animation: animation,
     onClick: handleChartClick,
-    interaction: isRadar || isPie
-      ? {}
-      : isScatter
-      ? { mode: 'nearest', intersect: true }
-      : { mode: 'index', intersect: false },
+    interaction: interactionOptions(),
     plugins: {
       legend: {
         display: showLegend.value,
         labels: { color: 'white' },
-        onClick(e, legendItem, legend) {
-          const chart = legend.chart;
-          const index = legendItem.datasetIndex;
-          if (e.native?.shiftKey) {
-            chart.data.datasets.forEach((_, i) => { chart.getDatasetMeta(i).hidden = i !== index; });
-          } else {
-            const meta = chart.getDatasetMeta(index);
-            meta.hidden = meta.hidden === null ? !chart.data.datasets[index].hidden : !meta.hidden;
-          }
-          chart.update();
-        },
+        onClick: onLegendClick,
       },
       tooltip: {
-        callbacks: {
-          label(context) {
-            if (isPie) {
-              const total = context.dataset.data.reduce((a, b) => a + b, 0);
-              const pct = total ? ((context.parsed / total) * 100).toFixed(1) : '0.0';
-              return `${context.label}: ${context.parsed} (${pct}%)`;
-            }
-            if (isScatter) {
-              return `${context.raw._label}: (${context.raw.x}, ${context.raw.y})`;
-            }
-            if (isLine) {
-              return `${context.dataset.label}: ${context.parsed.y?.toFixed(1)}%`;
-            }
-            return undefined;
-          },
-        },
+        callbacks: { label: tooltipLabel },
       },
     },
-    scales: isPie
-      ? {}
-      : isRadar
-      ? {
-          r: {
-            angleLines: { color: 'rgba(255,255,255,0.12)' },
-            grid: { color: 'rgba(255,255,255,0.12)' },
-            pointLabels: { color: '#e5e7ea' },
-            ticks: { display: false, backdropColor: 'transparent' },
-          },
-        }
-      : {
-          x: {
-            type: isScatter ? 'linear' : 'category',
-            title: isScatter ? { display: true, text: fieldName(xField.value), color: 'white' } : undefined,
-            ticks: { color: 'white',
-              autoSkip: !isLarge.value,
-              maxRotation: isLarge.value ? 90 : 45,
-              minRotation: isLarge.value ? 90 : 0,
-              callback: isScatter ? undefined : function (value) {
-              return truncate(this.getLabelForValue(value));
-              }, 
-            },
-          },
-          y: {
-            title: isScatter ? { display: true, text: fieldName(yField.value), color: 'white' } : undefined,
-            ticks: { color: 'white' },
-          },
-        },
+    scales: scaleOptions(),
   };
 });
+ 
 
 function downloadChart() {
   const canvas = chartRef.value?.$el;
-  if (!canvas?.toDataURL) return;
-  const a = document.createElement('a');
-  a.href = canvas.toDataURL('image/png');
-  a.download = `${subfieldType.value || visualizationType.value}-chart.png`;
-  a.click();
+  if (!canvas?.toDataURL) {
+    return;
+  }
+ 
+  const link = document.createElement('a');
+  link.href = canvas.toDataURL('image/png');
+  link.download = `${subfieldType.value || visualizationType.value}-chart.png`;
+  link.click();
 }
+ 
+watch(
+  function () {
+    return props.records;
+  },
+  function () {
+    selectedId.value = null;
+  }
+);
 
-// Reset selection when the underlying record set changes (e.g. filters change upstream)
-watch(() => props.records, () => { 
-  selectedId.value = null; 
-});
 </script>
 
 <template>
