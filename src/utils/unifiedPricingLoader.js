@@ -1,28 +1,9 @@
 import { uniqSorted } from '@/utils/calculationServices';
+import { CATEGORY_TO_DOMAIN, PROVIDER_LABELS, BASE_URL, DEFAULT_EFFECTIVE_DATE, 
+GENERIC_SKU  } from '@/data/constants'
 import Papa from 'papaparse';
 
-const BASE_URL = import.meta.env?.BASE_URL ?? '/';
-
 export const DEFAULT_CSV_URL = `${BASE_URL}data/unified_pricing.csv`;
-export const DEFAULT_EFFECTIVE_DATE = '2026-10-02T00:00:00Z';
-
-export const PROVIDER_LABELS = { 
-  aws: 'AWS', 
-  azure: 'Azure', 
-  gcp: 'GCP' 
-};
-
-export const CATEGORY_TO_DOMAIN = {
-  compute: 'IaaS',
-  containers: 'CaaS',
-  kubernetes: 'CaaS',
-  database: 'Database',
-  storage: 'PaaS',
-  networking: 'PaaS',
-  backup: 'PaaS',
-};
-
-const GENERIC_SKU = /^(vcore|standard|basic|cpu|ram|kubernetes|google|ssd|global|dedicated|hybrid|automatic|backup)$/i;
 
 export function csvToObjects(text) {
   const { data, errors } = Papa.parse(text, {
@@ -128,11 +109,9 @@ export function buildSkuName(r, os) {
   const memoryGb = round2(toNum(r.memory_gb));
   const service = r.service || '';
  
-  // ---- Step 1: main part of the name ----
   let core;
  
   if (r.category === 'database' && vcpu != null) {
-    // Databases: engine · vCPU · memory · instance type
     const parts = [
       r.db_engine || service,
       `${vcpu} vCPU`,
@@ -141,21 +120,17 @@ export function buildSkuName(r, os) {
     ];
     core = parts.filter(Boolean).join(' · ');
   } else {
-    // Everything else: pick the best available identifier.
-    // Virtual Machines prefer sku_name, other services prefer instance_type.
+
     const preferred = service === 'Virtual Machines' ? r.sku_name : r.instance_type;
     core = preferred || r.sku_name || r.description || r.sku_id || r.id;
  
-    // Too vague on its own? Prefix with the service name.
     if (GENERIC_SKU.test(core)) {
       core = `${service} ${core}`.trim();
     }
   }
  
-  // ---- Step 2: extra tags shown in parentheses ----
   const tags = [];
  
-  // Only add a tag if the core name doesn't already mention it
   function addTag(tag) {
     if (!tag) {
       return;
@@ -167,7 +142,7 @@ export function buildSkuName(r, os) {
   }
  
   if (os && os !== 'Linux') {
-    addTag(os); // Linux is the default, so we don't label it
+    addTag(os);
   }
   if (r.pricing_model && r.pricing_model !== 'on_demand') {
     addTag(r.pricing_model.replace('_', ' '));

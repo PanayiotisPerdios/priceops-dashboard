@@ -59,7 +59,6 @@ const regionOptions = computed( () => {
 const filteredRecords = computed(function () {
   const searchText = search.value.trim().toLowerCase();
  
-  // Number inputs may be null or '' -> treat as 0, which means "no limit"
   const minVcpuValue = Number(minVcpu.value) || 0;
   const minMemoryValue = Number(minMemory.value) || 0;
   const maxPriceValue = Number(maxPrice.value) || 0;
@@ -90,7 +89,6 @@ const filteredRecords = computed(function () {
       return false;
     }
  
-    // Unknown vCPU / memory count as 0, so they fail any minimum
     if (minVcpuValue && (record.vcpu_count ?? 0) < minVcpuValue) {
       return false;
     }
@@ -391,9 +389,9 @@ function exportJSON() {
         </select>
       </div>
   
-      <div v-if="engineOptions.length" class="data-ex-form-cont">
+      <div class="data-ex-form-cont">
         <label class="form-label" style="color: white">DB engine</label>
-        <select class="form-select w-100 custom-form-select" v-model="dbEngine">
+        <select class="form-select w-100 custom-form-select" v-model="dbEngine" :disabled="!engineOptions.length">
           <option :value="null">Any engine</option>
           <option v-for="e in engineOptions" :key="e" :value="e">{{ e }}</option>
         </select>

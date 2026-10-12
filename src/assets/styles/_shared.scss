@@ -30,6 +30,14 @@
   }
 }
 
+.custom-form-select:disabled {
+  background-color: #333333 !important;
+  color: #888888 !important;            
+  border-color: #444444 !important;     
+  transition: opacity 0.2s;                       
+  cursor: not-allowed;                  
+}
+
 .kpi {
   padding: 0.35rem 0.75rem;
   border-radius: 999px;

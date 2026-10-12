@@ -347,12 +347,17 @@ const cards = computed( () => {
   });
 });
 
+const filtersUnlocked = computed( () => {
+  if (compareMode.value === 'scenario') {
+    return true;
+  }
+  return !!provider1.value && !!provider2.value;
+});
+
 //Resets
 function resetSelection() {
   sku1.value = null;
   sku2.value = null;
-  scenarioPreset1.value = null;
-  scenarioPreset2.value = null;
 }
 
 function onDomainChange() {
@@ -520,7 +525,7 @@ function exportJSON() {
  
     </div>
  
-    <div class="d-flex justify-content-center align-items-end gap-3 flex-wrap">
+    <fieldset class="d-flex justify-content-center align-items-end gap-3 flex-wrap filters-row" :class="{ 'filters-disabled': !filtersUnlocked }" :disabled="!filtersUnlocked">
  
       <div class="data-ex-form-cont">
         <label class="form-label" style="color: white">Domain</label>
@@ -554,9 +559,9 @@ function exportJSON() {
         </select>
       </div>
  
-      <div v-if="engineOptions.length" class="data-ex-form-cont">
+      <div class="data-ex-form-cont">
         <label class="form-label" style="color: white">DB engine</label>
-        <select class="form-select w-100 custom-form-select" v-model="dbEngine" @change="resetSelection">
+        <select class="form-select w-100 custom-form-select" v-model="dbEngine" :disabled="!engineOptions.length" @change="resetSelection">
           <option :value="null">Any engine</option>
           <option v-for="e in engineOptions" :key="e" :value="e">{{ e }}</option>
         </select>
@@ -581,9 +586,9 @@ function exportJSON() {
           <button type="button" class="btn btn-outline-primary" :disabled="!record1 || !record2" @click="exportJSON">JSON</button>
         </div>
       </div>
- 
-    </div>
- 
+
+    </fieldset>  
+      
   </div>
   
   <div class="text-center text-white-50 small mt-1">

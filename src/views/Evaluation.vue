@@ -138,6 +138,20 @@ const topScored = computed( () => {
   return scored.value.slice(0, EVAL_TOP_N);
 });
 
+const providerLegend = computed( () => {
+  const seen = new Map();
+
+  topScored.value.forEach( (item, index) => {
+    if (!seen.has(item.provider)) {
+      seen.set(item.provider, colorFor(item.provider, index));
+    }
+  });
+
+  return [...seen].map( ([provider, color]) => {
+    return { provider, color };
+  });
+});
+
 function toggleExpanded(id) {
   if (expandedId.value === id) {
     expandedId.value = null;
@@ -204,15 +218,124 @@ const quadrantAvailable = computed( () => {
   return quadrantPoints.value.length > 0;
 });
 
-const PAD = 32;
-const SIZE = 320;
+const PAD = 48;
+const SIZE = 640;
+
+const PLOT = SIZE - PAD * 2;
+const MIN_ZOOM = 1;
+const MAX_ZOOM = 12;
+
+const svgEl = ref(null);
+const zoom = ref(1);
+const centerX = ref(0.5);
+const centerY = ref(0.5);
+const isDragging = ref(false);
+let lastPointer = { x: 0, y: 0 };
+
+const span = computed( () => {
+  return 1 / zoom.value;
+});
+const x0 = computed( () => {
+  return centerX.value - span.value / 2;
+});
+const y0 = computed( () => {
+  return centerY.value - span.value / 2;
+});
 
 function toSvgX(x) {
-  return PAD + x * (SIZE - PAD * 2);
+  return PAD + ((x - x0.value) / span.value) * PLOT;
 }
- 
+
 function toSvgY(y) {
-  return SIZE - PAD - y * (SIZE - PAD * 2);
+  return SIZE - PAD - ((y - y0.value) / span.value) * PLOT;
+}
+
+const hoveredId = ref(null);
+
+function shortName(name, max = 18) {
+  return name.length > max ? name.slice(0, max - 1) + '…' : name;
+}
+
+function labelAnchor(p) {
+  return toSvgX(p.x) > SIZE * 0.7 ? 'end' : 'start';
+}
+
+function labelDx(p) {
+  return labelAnchor(p) === 'end' ? -10 : 10;
+}
+
+function clampCenter() {
+  const half = span.value / 2;
+  centerX.value = Math.min(1 - half, Math.max(half, centerX.value));
+  centerY.value = Math.min(1 - half, Math.max(half, centerY.value));
+}
+
+function pointerInfo(evt) {
+  const rect = svgEl.value.getBoundingClientRect();
+  const sx = ((evt.clientX - rect.left) * SIZE) / rect.width;
+  const sy = ((evt.clientY - rect.top) * SIZE) / rect.height;
+  const fx = (sx - PAD) / PLOT;
+  const fy = (SIZE - PAD - sy) / PLOT;
+  return { fx, fy, dx: x0.value + fx * span.value, dy: y0.value + fy * span.value };
+}
+
+function zoomAt(factor, evt) {
+  const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom.value * factor));
+  if (newZoom === zoom.value) {
+    return;
+  }
+
+  let fx = 0.5, fy = 0.5, dx = centerX.value, dy = centerY.value;
+  if (evt) {
+    ({ fx, fy, dx, dy } = pointerInfo(evt));
+  }
+
+  zoom.value = newZoom;
+  const newSpan = 1 / newZoom;
+  centerX.value = dx - fx * newSpan + newSpan / 2;
+  centerY.value = dy - fy * newSpan + newSpan / 2;
+  clampCenter();
+}
+
+function onWheel(evt) {
+  zoomAt(evt.deltaY < 0 ? 1.25 : 1 / 1.25, evt);
+}
+
+function resetZoom() {
+  zoom.value = 1;
+  centerX.value = 0.5;
+  centerY.value = 0.5;
+}
+
+function startDrag(evt) {
+  if (zoom.value <= 1) {
+    return;
+  }
+  isDragging.value = true;
+  lastPointer = { x: evt.clientX, y: evt.clientY };
+}
+
+function onDrag(evt) {
+  if (!isDragging.value) {
+    return;
+  }
+  const rect = svgEl.value.getBoundingClientRect();
+  const dxSvg = ((evt.clientX - lastPointer.x) * SIZE) / rect.width;
+  const dySvg = ((evt.clientY - lastPointer.y) * SIZE) / rect.height;
+  centerX.value -= (dxSvg / PLOT) * span.value;
+  centerY.value += (dySvg / PLOT) * span.value;
+  clampCenter();
+  lastPointer = { x: evt.clientX, y: evt.clientY };
+}
+
+function endDrag() {
+  isDragging.value = false;
+}
+
+watch([xCat, yCat], resetZoom);
+
+function showLabel(p) {
+  return zoom.value >= 2 || paretoIds.value.has(p.id) || hoveredId.value === p.id;
 }
 
 </script>
@@ -227,34 +350,54 @@ function toSvgY(y) {
     <template v-else>
  
     <div class="d-flex gap-3 mb-3 flex-wrap align-items-center">
-      <select class="form-select w-auto" v-model="domain" @change="onDomainChange">
-        <option v-for="d in options.domains" :key="d" :value="d">{{ d }}</option>
-      </select>
- 
-      <select class="form-select w-auto" v-model="subcategory">
-        <option :value="null">Any type</option>
-        <option v-for="s in subcategoryOptions" :key="s" :value="s">{{ SUBCATEGORY_LABELS[s] ?? s }}</option>
-      </select>
- 
-      <select class="form-select w-auto" v-model="regionGroup">
-        <option :value="null">Any area</option>
-        <option v-for="g in options.regionGroups" :key="g" :value="g">{{ REGION_GROUP_LABELS[g] ?? g }}</option>
-      </select>
- 
-      <select class="form-select w-auto" v-model="operatingSystem">
-        <option :value="null">Any OS</option>
-        <option v-for="os in options.operatingSystems" :key="os" :value="os">{{ os }}</option>
-      </select>
- 
-      <select v-if="engineOptions.length" class="form-select w-auto" v-model="dbEngine">
-        <option :value="null">Any engine</option>
-        <option v-for="e in engineOptions" :key="e" :value="e">{{ e }}</option>
-      </select>
- 
-      <select class="form-select w-auto" v-model="pricingModel">
-        <option :value="null">Any pricing</option>
-        <option v-for="m in options.pricingModels" :key="m" :value="m">{{ PRICING_MODEL_LABELS[m] ?? m }}</option>
-      </select>
+
+      <div class="data-ex-form-cont">
+        <label class="form-label" style="color: white">Domain</label>
+        <select class="form-select w-auto custom-form-select" v-model="domain" @change="onDomainChange">
+          <option v-for="d in options.domains" :key="d" :value="d">{{ d }}</option>
+        </select>
+      </div>
+
+      <div class="data-ex-form-cont">
+        <label class="form-label" style="color: white">Resource type</label>
+        <select class="form-select w-auto custom-form-select" v-model="subcategory">
+          <option :value="null">Any type</option>
+          <option v-for="s in subcategoryOptions" :key="s" :value="s">{{ SUBCATEGORY_LABELS[s] ?? s }}</option>
+        </select>
+      </div>
+
+      <div class="data-ex-form-cont">
+        <label class="form-label" style="color: white">Area</label>
+        <select class="form-select w-auto custom-form-select" v-model="regionGroup">
+          <option :value="null">Any area</option>
+          <option v-for="g in options.regionGroups" :key="g" :value="g">{{ REGION_GROUP_LABELS[g] ?? g }}</option>
+        </select>
+      </div>
+
+      <div class="data-ex-form-cont">
+        <label class="form-label" style="color: white">Operating System</label>
+        <select class="form-select w-auto custom-form-select" v-model="operatingSystem">
+          <option :value="null">Any OS</option>
+          <option v-for="os in options.operatingSystems" :key="os" :value="os">{{ os }}</option>
+        </select>
+      </div>
+
+      <div class="data-ex-form-cont">
+        <label class="form-label" style="color: white">DB engine</label>
+        <select v-if="engineOptions.length" class="form-select w-auto custom-form-select" v-model="dbEngine">
+          <option :value="null">Any engine</option>
+          <option v-for="e in engineOptions" :key="e" :value="e">{{ e }}</option>
+        </select>
+      </div>
+      
+      <div class="data-ex-form-cont">
+        <label class="form-label" style="color: white">Pricing model</label>
+        <select class="form-select w-auto custom-form-select" v-model="pricingModel">
+          <option :value="null">Any pricing</option>
+          <option v-for="m in options.pricingModels" :key="m" :value="m">{{ PRICING_MODEL_LABELS[m] ?? m }}</option>
+        </select>
+      </div>
+
     </div>
  
     <div class="d-flex gap-3 mb-3 flex-wrap align-items-center">
@@ -369,32 +512,77 @@ function toSvgY(y) {
           <option v-for="c in categories" :key="c" :value="c">{{ c }}</option>
         </select>
       </div>
+
+      <div class="provider-legend">
+        <div v-for="entry in providerLegend" :key="entry.provider" class="provider-legend-item">
+          <span class="provider-legend-dot" :style="{ backgroundColor: entry.color }"></span>
+          {{ entry.provider }}
+        </div>
+      </div>
  
       <div v-if="!quadrantAvailable" class="text-white-50">
         Not enough scored records to plot a quadrant chart.
       </div>
+
       <div v-else class="quadrant-chart-wrap">
-        <svg :viewBox="`0 0 ${SIZE} ${SIZE}`" class="quadrant-svg">
-          <line :x1="PAD" :y1="SIZE/2" :x2="SIZE-PAD" :y2="SIZE/2" class="quadrant-gridline" />
-          <line :x1="SIZE/2" :y1="PAD" :x2="SIZE/2" :y2="SIZE-PAD" class="quadrant-gridline" />
-          <rect :x="PAD" :y="PAD" :width="SIZE-PAD*2" :height="SIZE-PAD*2" class="quadrant-border" />
- 
-          <text :x="SIZE/2" :y="SIZE-8" class="quadrant-axis-label" text-anchor="middle">{{ xCat }} score →</text>
-          <text :x="12" :y="SIZE/2" class="quadrant-axis-label" text-anchor="middle" :transform="`rotate(-90 12 ${SIZE/2})`">{{ yCat }} score →</text>
- 
-          <g v-for="p in quadrantPoints" :key="p.id">
-            <circle :cx="toSvgX(p.x)" :cy="toSvgY(p.y)" :r="paretoIds.has(p.id) ? 8 : 6" :fill="p.color" :class="{ 'pareto-point': paretoIds.has(p.id) }"/>
-            <text :x="toSvgX(p.x) + 10" :y="toSvgY(p.y) + 4" class="quadrant-point-label">{{ p.name }}</text>
+        <div class="quadrant-zoom-controls">
+          <button type="button" class="btn btn-sm btn-outline-light" :disabled="zoom >= MAX_ZOOM" @click="zoomAt(1.5)">+</button>
+          <button type="button" class="btn btn-sm btn-outline-light" :disabled="zoom <= MIN_ZOOM" @click="zoomAt(1 / 1.5)">−</button>
+          <button type="button" class="btn btn-sm btn-outline-light" :disabled="zoom === 1" @click="resetZoom">Reset</button>
+          <span class="text-white-50 small">×{{ zoom.toFixed(1) }}</span>
+        </div>
+
+        <svg ref="svgEl" :viewBox="`0 0 ${SIZE} ${SIZE}`" class="quadrant-svg"
+            :class="{ 'is-zoomed': zoom > 1, 'is-dragging': isDragging }"
+            @wheel.prevent="onWheel" @mousedown="startDrag" @mousemove="onDrag"
+            @mouseup="endDrag" @mouseleave="endDrag">
+
+          <defs>
+            <clipPath id="quadrant-clip">
+              <rect :x="PAD - 10" :y="PAD - 10" :width="PLOT + 20" :height="PLOT + 20" />
+            </clipPath>
+          </defs>
+
+          <g clip-path="url(#quadrant-clip)">
+            <line :x1="PAD" :y1="toSvgY(0.5)" :x2="SIZE - PAD" :y2="toSvgY(0.5)" class="quadrant-gridline" />
+            <line :x1="toSvgX(0.5)" :y1="PAD" :x2="toSvgX(0.5)" :y2="SIZE - PAD" class="quadrant-gridline" />
+
+            <g v-for="p in quadrantPoints" :key="p.id"
+              @mouseenter="hoveredId = p.id" @mouseleave="hoveredId = null">
+              <title>{{ p.name }}</title>
+              <circle :cx="toSvgX(p.x)" :cy="toSvgY(p.y)" :r="paretoIds.has(p.id) ? 8 : 6"
+                      :fill="p.color" :class="{ 'pareto-point': paretoIds.has(p.id) }" />
+              <text v-if="showLabel(p)"
+                    :x="toSvgX(p.x) + labelDx(p)" :y="toSvgY(p.y) + 4"
+                    :text-anchor="labelAnchor(p)" class="quadrant-point-label">
+                {{ hoveredId === p.id ? p.name : shortName(p.name) }}
+              </text>
+            </g>
           </g>
+
+          <rect :x="PAD" :y="PAD" :width="PLOT" :height="PLOT" class="quadrant-border" />
+
+          <text :x="SIZE / 2" :y="SIZE - 8" class="quadrant-axis-label" text-anchor="middle">{{ xCat }} score →</text>
+          <text :x="16" :y="SIZE / 2" class="quadrant-axis-label" text-anchor="middle" :transform="`rotate(-90 16 ${SIZE / 2})`">{{ yCat }} score →</text>
         </svg>
+
         <div class="quadrant-legend text-white-50 small">
           Highlighted (outlined) points sit on the Pareto frontier — no other option beats them on both {{ xCat.toLowerCase() }} and {{ yCat.toLowerCase() }} at once.
           Showing the top {{ QUADRANT_LIMIT }} ranked options plus every Pareto point.
+          Scroll to zoom, drag to pan, hover a point to see its name.
         </div>
       </div>
     </div>
  
     <div v-else class="breakdown-grid">
+
+      <div class="provider-legend">
+        <div v-for="entry in providerLegend" :key="entry.provider" class="provider-legend-item">
+          <span class="provider-legend-dot" :style="{ backgroundColor: entry.color }"></span>
+          {{ entry.provider }}
+        </div>
+      </div>
+
       <div v-for="cat in categories" :key="cat" class="breakdown-grid-row">
         <div class="breakdown-grid-label">{{ cat }}</div>
         <div class="breakdown-grid-bars">

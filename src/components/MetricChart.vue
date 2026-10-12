@@ -65,7 +65,7 @@ const subfieldType = ref(props.columns[0]?.id ?? null);
 const xField = ref(props.columns[0]?.id ?? null);
 const yField = ref(props.columns[1]?.id ?? props.columns[0]?.id ?? null);
 
-const sortDir = ref('asc'); // 'asc' | 'desc' | 'name'
+const sortDir = ref('asc');
 const showExtremes = ref(true);
 const showAverage = ref(false);
 const selectedId = ref(null);
@@ -545,12 +545,10 @@ function scaleOptions() {
   const type = visualizationType.value;
   const isScatter = type === 'Scatter';
  
-  // Pie has no axes
   if (type === 'Pie') {
     return {};
   }
  
-  // Radar has a single radial axis
   if (type === 'Radar') {
     return {
       r: {
@@ -562,11 +560,12 @@ function scaleOptions() {
     };
   }
  
-  // Bar, Line and Scatter: normal x / y axes
   return {
     x: {
       type: isScatter ? 'linear' : 'category',
       title: isScatter ? { display: true, text: fieldName(xField.value), color: 'white' } : undefined,
+      grid: { color: 'rgba(255,255,255,0.15)' },
+      border: { color: 'rgba(255,255,255,0.6)' },
       ticks: {
         color: 'white',
         autoSkip: !isLarge.value,
@@ -577,6 +576,8 @@ function scaleOptions() {
     },
     y: {
       title: isScatter ? { display: true, text: fieldName(yField.value), color: 'white' } : undefined,
+      grid: { color: 'rgba(255,255,255,0.15)' },
+      border: { color: 'rgba(255,255,255,0.6)' },
       ticks: { color: 'white' },
     },
   };
@@ -616,8 +617,17 @@ function downloadChart() {
     return;
   }
  
+  const out = document.createElement('canvas');
+  out.width = canvas.width;
+  out.height = canvas.height;
+
+  const ctx = out.getContext('2d');
+  ctx.fillStyle = '#111827';
+  ctx.fillRect(0, 0, out.width, out.height);
+  ctx.drawImage(canvas, 0, 0);
+
   const link = document.createElement('a');
-  link.href = canvas.toDataURL('image/png');
+  link.href = out.toDataURL('image/png');
   link.download = `${subfieldType.value || visualizationType.value}-chart.png`;
   link.click();
 }

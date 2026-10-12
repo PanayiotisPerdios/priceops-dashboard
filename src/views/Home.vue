@@ -1,7 +1,7 @@
 <script setup>
+import { computed } from 'vue'
 import Card from '@/components/Card.vue'
-import { providers, domains } from '@/data/filters'
-import { pricingRecords } from '@/data/mockPricingData'
+import { usePricingData } from '@/composables/usePricingData'
 
 const cards = [
   { title: 'Explore Data', message: 'See instance pricing and metrics across providers.', reference: 'explore' },
@@ -9,8 +9,13 @@ const cards = [
   { title: 'Evaluate Policies', message: 'Rank providers by cost, performance, or a policy you define.', reference: 'evaluation' },
 ]
 
-const providerList = providers.join(' · ')
-const regionCount = new Set(pricingRecords.map(r => r.region)).size
+const { records, loading, error, options } = usePricingData();
+
+const providerList = computed(() => options.value.providers.join(' · '))
+const providerCount = computed(() => options.value.providers.length)
+const domainCount = computed(() => options.value.domains.length)
+const regionCount = computed(() => options.value.regions.length)
+
 </script>
 
 <template>
@@ -25,16 +30,22 @@ const regionCount = new Set(pricingRecords.map(r => r.region)).size
       <circle cx="320" cy="50" r="5" class="hero-bg-node" style="--node-color:#4285f4" />
     </svg>
 
-    <span class="hero-eyebrow">{{ providerList }}</span>
+    <span class="hero-eyebrow">{{ loading ? 'Loading providers…' : providerList }}</span>
     <h1 class="hero-title">Know what your cloud actually costs.</h1>
     <p class="hero-subtitle">
       CloudPricingOps brings pricing, performance, and policy into one comparable view — across every provider you run.
     </p>
 
-    <div class="hero-stats">
-      <span>{{ providers.length }} providers</span>
+    <div class="hero-stats" v-if="error">
+      <span>Couldn't load pricing data.</span>
+    </div>
+    <div class="hero-stats" v-else-if="loading">
+      <span>Loading…</span>
+    </div>
+    <div class="hero-stats" v-else>
+      <span>{{ providerCount }} providers</span>
       <span class="hero-stats-divider">·</span>
-      <span>{{ domains.length }} domains</span>
+      <span>{{ domainCount }} domains</span>
       <span class="hero-stats-divider">·</span>
       <span>{{ regionCount }} regions</span>
     </div>

@@ -85,6 +85,29 @@ export const PRICING_MODEL_LABELS = {
   other_term: 'Other term',
 };
 
+export const DEFAULT_EFFECTIVE_DATE = '2026-10-02T00:00:00Z';
+
+export const PROVIDER_LABELS = { 
+  aws: 'AWS', 
+  azure: 'Azure', 
+  gcp: 'GCP' 
+};
+
+export const CATEGORY_TO_DOMAIN = {
+  compute: 'IaaS',
+  containers: 'CaaS',
+  kubernetes: 'CaaS',
+  database: 'Database',
+  storage: 'PaaS',
+  networking: 'PaaS',
+  backup: 'PaaS',
+};
+
+export const GENERIC_SKU = /^(vcore|standard|basic|cpu|ram|kubernetes|google|ssd|global|dedicated|hybrid|automatic|backup)$/i;
+
+export const BASE_URL = import.meta.env?.BASE_URL ?? '/';
+
+
 export const DEFAULT_SUBCATEGORY = 'instance';
 export const SKU_OPTION_LIMIT = 400;   // max entries in a SKU <select>
 export const TABLE_PAGE_SIZE = 50;     // DataExploration rows per page
