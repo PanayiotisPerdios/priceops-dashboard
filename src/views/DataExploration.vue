@@ -10,7 +10,7 @@ import {
 import { colorFor, uniqSorted, median, fmt } from '@/utils/calculationServices';
 import { exportRowsCSV, exportRowsJSON } from '@/utils/exportHelpers';
 
-const { records, loading, error, options } = usePricingData();
+const { records, loading, error, options, sourceName } = usePricingData();
 
 const provider = ref(null);
 const domain = ref(null);
@@ -326,6 +326,8 @@ function exportCSV() {
 function exportJSON() {
   exportRowsJSON(buildExportRows());
 }
+
+watch(sourceName, resetFilters);
 
 </script>
 

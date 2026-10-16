@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { policyPresets, DEFAULT_WEIGHTS } from '@/data/policyPresets';
 import { usePricingData } from '@/composables/usePricingData';
 import { useScenarioScoring } from '@/composables/useScenarioScoring';
@@ -15,7 +15,7 @@ import {
 } from '@/utils/calculationServices';
 import { exportCompareCSV, exportCompareJSON } from '@/utils/exportHelpers';
 
-const { records, loading, error, options } = usePricingData();
+const { records, loading, error, options, sourceName } = usePricingData();
 
 const isScrolled = ref(false);
 
@@ -193,12 +193,20 @@ const presetNames = Object.keys(policyPresets);
 const scenarioPreset1 = ref(null);
 const scenarioPreset2 = ref(null);
 
-const weights1 = computed( () => {
-  return policyPresets[scenarioPreset1.value] ?? DEFAULT_WEIGHTS;
+const weights1 = computed(() => {
+  const preset = policyPresets[scenarioPreset1.value];
+  if (preset === undefined || preset === null) {
+    return DEFAULT_WEIGHTS;
+  }
+  return preset;
 });
- 
-const weights2 = computed( () => {
-  return policyPresets[scenarioPreset2.value] ?? DEFAULT_WEIGHTS;
+
+const weights2 = computed(() => {
+  const preset = policyPresets[scenarioPreset2.value];
+  if (preset === undefined || preset === null) {
+    return DEFAULT_WEIGHTS;
+  }
+  return preset;
 });
 
 const scoringPool = computed( () => {
@@ -403,6 +411,8 @@ function exportCSV() {
 function exportJSON() {
   exportCompareJSON(record1.value, record2.value, COMPARE_FIELDS);
 }
+
+watch(sourceName, () => resetFilters());
 
 </script>
 

@@ -10,7 +10,7 @@ import {
 } from '@/data/constants';
 import { colorFor, paretoFrontier2D, uniqSorted, cheapestPerSku, fmt } from '@/utils/calculationServices';
 
-const { records, loading, error, options } = usePricingData();
+const { records, loading, error, options, sourceName } = usePricingData();
 
 const domain = ref(null);
 const subcategory = ref(DEFAULT_SUBCATEGORY);
@@ -26,11 +26,9 @@ const lastPreset = ref('balanced');
 const expandedId = ref(null);
 
 watch(
-  () => {
-    return options.value.domains;
-  },
+  () => options.value.domains,
   (domains) => {
-    if (!domain.value && domains.length) {
+    if (domains.length && !domains.includes(domain.value)) {
       domain.value = domains.includes('Database') ? 'Database' : domains[0];
     }
   },
@@ -337,6 +335,15 @@ watch([xCat, yCat], resetZoom);
 function showLabel(p) {
   return zoom.value >= 2 || paretoIds.value.has(p.id) || hoveredId.value === p.id;
 }
+
+watch(sourceName, () => {
+  subcategory.value = DEFAULT_SUBCATEGORY;
+  regionGroup.value = null;
+  operatingSystem.value = null;
+  dbEngine.value = null;
+  pricingModel.value = 'on_demand';
+  expandedId.value = null;
+});
 
 </script>
 
