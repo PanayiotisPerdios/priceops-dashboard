@@ -10,6 +10,8 @@ import {
 import { colorFor, uniqSorted, median, fmt } from '@/utils/calculationServices';
 import { exportRowsCSV, exportRowsJSON } from '@/utils/exportHelpers';
 
+const activeTab = ref('chart');
+
 const { records, loading, error, options, sourceName } = usePricingData();
 
 const provider = ref(null);
@@ -118,10 +120,10 @@ const COLUMNS = [
   { key: 'skuName', label: 'SKU' },
   { key: 'region', label: 'Region' },
   { key: 'operating_system', label: 'OS' },
-  { key: 'vcpu_count', label: 'vCPU' },
-  { key: 'memory_gb', label: 'Memory (GB)' },
-  { key: 'effective_price_hr', label: 'Price / hr' },
-  { key: 'price_per_vcpu_hr', label: 'Price / vCPU-hr' },
+  { key: 'vcpu_count', label: 'vCPU', numeric: true },
+  { key: 'memory_gb', label: 'Memory (GB)', numeric: true },
+  { key: 'effective_price_hr', label: 'Price / hr', numeric: true },
+  { key: 'price_per_vcpu_hr', label: 'Price / vCPU-hr', numeric: true },
   { key: 'pricing_model', label: 'Pricing' },
   { key: 'data_quality_score', label: 'Quality' },
 ];
@@ -460,103 +462,130 @@ watch(sourceName, resetFilters);
       </div>
   </div>
  
-  <div v-if="filteredRecords.length && provider" class="chart-host mb-5">
-    <MetricChart :records="chartRecords" :columns="CHART_COLUMNS"/>
-  </div>
+  <div class="data-exploration-container">
+      <div class="tabs-wrapper">
 
-  <div v-if="filteredRecords.length && provider" class="text-center text-white-50 small mb-4">
-    Chart shows the first {{ CHART_LIMIT }} rows of the current sort
-  </div>
- 
-  <div v-if="provider" class="data-exploration-container">
- 
-    <div class="metrics-card">
- 
-      <div class="metrics-card-header">
-        <div>
-          <span class="metrics-card-title">Pricing records</span>
-          <span class="metrics-card-sub">
-            {{ rangeStart.toLocaleString() }}–{{ rangeEnd.toLocaleString() }} of {{ sortedRecords.length.toLocaleString() }}
-          </span>
-        </div>
-        <span class="metrics-card-hint">Click a column header to sort</span>
-      </div>
- 
-      <div class="table-responsive metrics-table-container">
-        <table class="metrics-table table table-hover align-middle">
-          <thead>
-            <tr>
-              <th v-for="c in COLUMNS" :key="c.key" scope="col"
-                :class="{ num: c.numeric, sorted: sortKey === c.key }" @click="sortBy(c.key)">
-                {{ c.label }}
-                <span class="sort-arrow">{{ sortKey === c.key ? (sortDir === 'asc' ? '▲' : '▼') : '' }}</span>
-              </th>
-            </tr>
-          </thead>
- 
-          <tbody>
-            <tr v-for="record in pageRows" :key="record.id">
-              <td class="nowrap">
-                <span class="provider-dot" :style="{ backgroundColor: colorFor(record.provider) }"></span>{{ record.provider }}
-              </td>
-              <td><span class="type-pill">{{ SUBCATEGORY_LABELS[record.subcategory] ?? record.subcategory }}</span></td>
-              <td class="sku-cell" :title="record.skuName">{{ record.skuName }}</td>
-              <td class="nowrap">{{ record.region }}</td>
-              <td>
-                <span v-if="record.operating_system">{{ record.operating_system }}</span>
-                <span v-else class="na">–</span>
-              </td>
-              <td class="num">
-                <span v-if="record.vcpu_count != null">{{ record.vcpu_count }}</span>
-                <span v-else class="na">–</span>
-              </td>
-              <td class="num">
-                <span v-if="record.specs_inferred" class="est-badge" title="Estimated, not published by the provider">est.</span>
-                <span v-if="record.memory_gb != null">{{ record.memory_gb }}</span>
-                <span v-else class="na">–</span>
-              </td>
-              <td class="num price">{{ record.effective_price_hr.toFixed(4) }}<span class="cur">{{ record.currencyCode }}</span></td>
-              <td class="num">
-                <span v-if="record.price_per_vcpu_hr != null">{{ fmt(record.price_per_vcpu_hr) }}</span>
-                <span v-else class="na">–</span>
-              </td>
-              <td>
-                <span class="pm-pill" :class="'pm-' + record.pricing_model">
-                  {{ PRICING_MODEL_LABELS[record.pricing_model] ?? record.pricing_model }}
-                </span>
-              </td>
-              <td>
-                <div class="quality" :title="`Data quality ${record.data_quality_score}/100`">
-                  <div class="quality-track">
-                    <div class="quality-fill" :class="qualityClass(record.data_quality_score)"
-                      :style="{ width: record.data_quality_score + '%' }"></div>
-                  </div>
-                  <span>{{ record.data_quality_score }}</span>
+        <ul class="nav nav-tabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button type="button" class="nav-link" :class="{ active: activeTab === 'chart' }"
+              role="tab" :aria-selected="activeTab === 'chart'" @click="activeTab = 'chart'">
+              Chart
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button type="button" class="nav-link" :class="{ active: activeTab === 'table' }"
+              role="tab" :aria-selected="activeTab === 'table'" @click="activeTab = 'table'">
+              Table
+            </button>
+          </li>
+        </ul>
+
+      <div class="tab-content">
+
+   <!-- CHART TAB -->
+          <div v-if="activeTab === 'chart'" class="tab-pane fade show active" role="tabpanel">
+            <div v-if="!provider" class="tab-empty">Select a provider to see the chart.</div>
+            <div v-else-if="!filteredRecords.length" class="tab-empty">No records match the current filters.</div>
+            <template v-else>
+              <div class="chart-host mb-3">
+                <MetricChart :records="chartRecords" :columns="CHART_COLUMNS" />
+              </div>
+              <div class="text-center text-white-50 small mb-4">
+                Chart shows the first {{ CHART_LIMIT }} rows of the current sort
+              </div>
+            </template>
+          </div>
+
+    <!-- TABLE TAB -->
+          <div v-else class="tab-pane fade show active" role="tabpanel">
+            <div v-if="!provider" class="tab-empty">Select a provider to see the table</div>
+
+            <div v-else class="metrics-card">
+              <div class="metrics-card-header">
+                <div>
+                  <span class="metrics-card-title">Pricing records</span>
+                  <span class="metrics-card-sub">
+                    {{ rangeStart.toLocaleString() }}–{{ rangeEnd.toLocaleString() }} of {{ sortedRecords.length.toLocaleString() }}
+                  </span>
                 </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
- 
-        <div v-if="!filteredRecords.length" class="metrics-empty">
-          <div class="metrics-empty-title">No records match the current filters</div>
-          <div class="text-white-50 small">Try removing a filter or press Reset.</div>
-        </div>
+                <span class="metrics-card-hint">Click a column header to sort</span>
+              </div>
+
+              <div class="table-responsive metrics-table-container">
+                <table class="metrics-table table table-hover align-middle">
+                  <thead>
+                    <tr>
+                      <th v-for="c in COLUMNS" :key="c.key" scope="col"
+                        :class="{ num: c.numeric, sorted: sortKey === c.key }" @click="sortBy(c.key)">
+                        {{ c.label }}
+                        <span class="sort-arrow">{{ sortKey === c.key ? (sortDir === 'asc' ? '▲' : '▼') : '' }}</span>
+                      </th>
+                    </tr>
+                  </thead>
+    
+                  <tbody>
+                    <tr v-for="record in pageRows" :key="record.id">
+                      <td class="nowrap">
+                        <span class="provider-dot" :style="{ backgroundColor: colorFor(record.provider) }"></span>{{ record.provider }}
+                      </td>
+                      <td><span class="type-pill">{{ SUBCATEGORY_LABELS[record.subcategory] ?? record.subcategory }}</span></td>
+                      <td class="sku-cell" :title="record.skuName">{{ record.skuName }}</td>
+                      <td class="nowrap">{{ record.region }}</td>
+                      <td>
+                        <span v-if="record.operating_system">{{ record.operating_system }}</span>
+                        <span v-else class="na">–</span>
+                      </td>
+                      <td class="num">
+                        <span v-if="record.vcpu_count != null">{{ record.vcpu_count }}</span>
+                        <span v-else class="na">–</span>
+                      </td>
+                      <td class="num">
+                        <span v-if="record.specs_inferred" class="est-badge" title="Estimated, not published by the provider">est.</span>
+                        <span v-if="record.memory_gb != null">{{ record.memory_gb }}</span>
+                        <span v-else class="na">–</span>
+                      </td>
+                      <td class="num price">{{ record.effective_price_hr.toFixed(4) }}<span class="cur">{{ record.currencyCode }}</span></td>
+                      <td class="num">
+                        <span v-if="record.price_per_vcpu_hr != null">{{ fmt(record.price_per_vcpu_hr) }}</span>
+                        <span v-else class="na">–</span>
+                      </td>
+                      <td>
+                        <span class="pm-pill" :class="'pm-' + record.pricing_model">
+                          {{ PRICING_MODEL_LABELS[record.pricing_model] ?? record.pricing_model }}
+                        </span>
+                      </td>
+                      <td>
+                        <div class="quality" :title="`Data quality ${record.data_quality_score}/100`">
+                          <div class="quality-track">
+                            <div class="quality-fill" :class="qualityClass(record.data_quality_score)"
+                              :style="{ width: record.data_quality_score + '%' }"></div>
+                          </div>
+                          <span>{{ record.data_quality_score }}</span>
+                        </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+    
+                <div v-if="!filteredRecords.length" class="metrics-empty">
+                  <div class="metrics-empty-title">No records match the current filters</div>
+                  <div class="text-white-50 small">Try removing a filter or press Reset.</div>
+                </div>
+          </div>
+            <div v-if="filteredRecords.length" class="metrics-card-footer">
+              <span class="text-white-50 small">Page {{ page }} of {{ totalPages }}</span>
+              <div class="btn-group btn-group-sm">
+                <button type="button" class="btn btn-outline-light" :disabled="page <= 1" @click="page = 1">« First</button>
+                <button type="button" class="btn btn-outline-light" :disabled="page <= 1" @click="page--">‹ Prev</button>
+                <button type="button" class="btn btn-outline-light" :disabled="page >= totalPages" @click="page++">Next ›</button>
+                <button type="button" class="btn btn-outline-light" :disabled="page >= totalPages" @click="page = totalPages">Last »</button>
+              </div>
+            </div>
       </div>
- 
-      <div v-if="filteredRecords.length" class="metrics-card-footer">
-        <span class="text-white-50 small">Page {{ page }} of {{ totalPages }}</span>
-        <div class="btn-group btn-group-sm">
-          <button type="button" class="btn btn-outline-light" :disabled="page <= 1" @click="page = 1">« First</button>
-          <button type="button" class="btn btn-outline-light" :disabled="page <= 1" @click="page--">‹ Prev</button>
-          <button type="button" class="btn btn-outline-light" :disabled="page >= totalPages" @click="page++">Next ›</button>
-          <button type="button" class="btn btn-outline-light" :disabled="page >= totalPages" @click="page = totalPages">Last »</button>
-        </div>
       </div>
- 
     </div>
- 
   </div>
+</div>
  
   </template>
 </div>

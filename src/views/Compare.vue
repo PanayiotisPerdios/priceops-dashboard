@@ -31,6 +31,8 @@ onUnmounted( () => {
   window.removeEventListener('scroll', handleScroll);
 });
 
+const activeTab = ref('chart');
+
 //Shared filters
 const compareMode = ref('sku');
 
@@ -418,7 +420,7 @@ watch(sourceName, () => resetFilters());
 
 <template>
 <div class="page">
- 
+
   <div class="btn-group">
     <button type="button" class="btn btn-outline-light" :class="{ active: compareMode === 'sku' }"
       @click="compareMode = 'sku'; resetFilters()">
@@ -429,277 +431,310 @@ watch(sourceName, () => resetFilters());
       Scenario
     </button>
   </div>
- 
+
   <div v-if="loading" class="text-white-50 mt-3">Loading pricing data…</div>
   <div v-else-if="error" class="text-danger mt-3">Could not load the pricing data: {{ error.message }}</div>
- 
+
   <template v-else>
- 
-  <div class="top-filter-bar d-flex flex-column align-items-center gap-3 py-2" :class="{ scrolled: isScrolled }">
- 
-    <div class="d-flex justify-content-center align-items-end gap-3 flex-wrap">
- 
-      <template v-if="compareMode === 'sku'">
- 
-        <div class="comparison-select-group">
-          <div class="data-ex-form-cont">
-            <label class="form-label" style="color: white">Provider A</label>
-            <select class="form-select w-100 custom-form-select" v-model="provider1" @change="region1 = null; sku1 = null">
-              <option :value="null" disabled>Select provider</option>
-              <option v-for="p in options.providers" :key="p" :value="p">{{ p }}</option>
-            </select>
+
+    <div class="top-filter-bar d-flex flex-column align-items-center gap-3 py-2" :class="{ scrolled: isScrolled }">
+
+      <div class="d-flex justify-content-center align-items-end gap-3 flex-wrap">
+
+        <template v-if="compareMode === 'sku'">
+
+          <div class="comparison-select-group">
+            <div class="data-ex-form-cont">
+              <label class="form-label" style="color: white">Provider A</label>
+              <select class="form-select w-100 custom-form-select" v-model="provider1" @change="region1 = null; sku1 = null">
+                <option :value="null" disabled>Select provider</option>
+                <option v-for="p in options.providers" :key="p" :value="p">{{ p }}</option>
+              </select>
+            </div>
+
+            <div class="data-ex-form-cont">
+              <label class="form-label" style="color: white">Region A</label>
+              <select class="form-select custom-form-select" v-model="region1" :disabled="!provider1" @change="sku1 = null">
+                <option :value="null">Any region</option>
+                <option v-for="r in regionOptions1" :key="r" :value="r">{{ r }}</option>
+              </select>
+            </div>
+
+            <div class="data-ex-form-cont sku-field">
+              <label class="form-label" style="color: white">SKU A</label>
+              <select class="form-select custom-form-select" v-model="sku1" :disabled="!provider1">
+                <option :value="null" disabled>Select a SKU</option>
+                <option v-for="r in skuOptions1" :key="r.id" :value="r.id" :disabled="r.id === sku2">
+                  {{ skuLabel(r) }}
+                </option>
+              </select>
+              <small v-if="skuMatches1.length > SKU_OPTION_LIMIT" class="text-white-50">
+                First {{ SKU_OPTION_LIMIT }} of {{ skuMatches1.length }} - narrow with region / filters
+              </small>
+            </div>
           </div>
- 
-          <div class="data-ex-form-cont">
-            <label class="form-label" style="color: white">Region A</label>
-            <select class="form-select custom-form-select" v-model="region1" :disabled="!provider1" @change="sku1 = null">
-              <option :value="null">Any region</option>
-              <option v-for="r in regionOptions1" :key="r" :value="r">{{ r }}</option>
-            </select>
+
+          <div class="comparison-select-group">
+            <div class="data-ex-form-cont">
+              <label class="form-label" style="color: white">Provider B</label>
+              <select class="form-select custom-form-select" v-model="provider2" @change="region2 = null; sku2 = null">
+                <option :value="null" disabled>Select provider</option>
+                <option v-for="p in options.providers" :key="p" :value="p">{{ p }}</option>
+              </select>
+            </div>
+
+            <div class="data-ex-form-cont">
+              <label class="form-label" style="color: white">Region B</label>
+              <select class="form-select custom-form-select" v-model="region2" :disabled="!provider2" @change="sku2 = null">
+                <option :value="null">Any region</option>
+                <option v-for="r in regionOptions2" :key="r" :value="r">{{ r }}</option>
+              </select>
+            </div>
+
+            <div class="data-ex-form-cont sku-field">
+              <label class="form-label" style="color: white">SKU B</label>
+              <select class="form-select custom-form-select" v-model="sku2" :disabled="!provider2">
+                <option :value="null" disabled>Select a SKU</option>
+                <option v-for="r in skuOptions2" :key="r.id" :value="r.id" :disabled="r.id === sku1">
+                  {{ skuLabel(r) }}
+                </option>
+              </select>
+              <small v-if="skuMatches2.length > SKU_OPTION_LIMIT" class="text-white-50">
+                First {{ SKU_OPTION_LIMIT }} of {{ skuMatches2.length }} - narrow with region / filters
+              </small>
+            </div>
           </div>
- 
-          <div class="data-ex-form-cont sku-field">
-            <label class="form-label" style="color: white">SKU A</label>
-            <select class="form-select custom-form-select" v-model="sku1" :disabled="!provider1">
-              <option :value="null" disabled>Select a SKU</option>
-              <option v-for="r in skuOptions1" :key="r.id" :value="r.id" :disabled="r.id === sku2">
-                {{ skuLabel(r) }}
-              </option>
-            </select>
-            <small v-if="skuMatches1.length > SKU_OPTION_LIMIT" class="text-white-50">
-              First {{ SKU_OPTION_LIMIT }} of {{ skuMatches1.length }} - narrow with region / filters
-            </small>
+
+        </template>
+
+        <template v-else>
+
+          <div class="comparison-select-group">
+            <div class="data-ex-form-cont">
+              <label class="form-label" style="color: white">Scenario A</label>
+              <select class="form-select w-100 custom-form-select" v-model="scenarioPreset1">
+                <option v-if="!scenarioPreset1" :value="null" disabled selected hidden>Choose preset</option>
+                <option v-for="name in presetNames" :key="name" :value="name" :disabled="name === scenarioPreset2">
+                  {{ presetLabels[name] ?? name }}
+                </option>
+              </select>
+            </div>
           </div>
-        </div>
- 
-        <div class="comparison-select-group">
-          <div class="data-ex-form-cont">
-            <label class="form-label" style="color: white">Provider B</label>
-            <select class="form-select custom-form-select" v-model="provider2" @change="region2 = null; sku2 = null">
-              <option :value="null" disabled>Select provider</option>
-              <option v-for="p in options.providers" :key="p" :value="p">{{ p }}</option>
-            </select>
+
+          <div class="comparison-select-group">
+            <div class="data-ex-form-cont">
+              <label class="form-label" style="color: white">Scenario B</label>
+              <select class="form-select w-100 custom-form-select" v-model="scenarioPreset2">
+                <option v-if="!scenarioPreset2" :value="null" disabled selected hidden>Choose preset</option>
+                <option v-for="name in presetNames" :key="name" :value="name" :disabled="name === scenarioPreset1">
+                  {{ presetLabels[name] ?? name }}
+                </option>
+              </select>
+            </div>
           </div>
- 
-          <div class="data-ex-form-cont">
-            <label class="form-label" style="color: white">Region B</label>
-            <select class="form-select custom-form-select" v-model="region2" :disabled="!provider2" @change="sku2 = null">
-              <option :value="null">Any region</option>
-              <option v-for="r in regionOptions2" :key="r" :value="r">{{ r }}</option>
-            </select>
-          </div>
- 
-          <div class="data-ex-form-cont sku-field">
-            <label class="form-label" style="color: white">SKU B</label>
-            <select class="form-select custom-form-select" v-model="sku2" :disabled="!provider2">
-              <option :value="null" disabled>Select a SKU</option>
-              <option v-for="r in skuOptions2" :key="r.id" :value="r.id" :disabled="r.id === sku1">
-                {{ skuLabel(r) }}
-              </option>
-            </select>
-            <small v-if="skuMatches2.length > SKU_OPTION_LIMIT" class="text-white-50">
-              First {{ SKU_OPTION_LIMIT }} of {{ skuMatches2.length }} - narrow with region / filters
-            </small>
-          </div>
-        </div>
- 
-      </template>
- 
-      <template v-else>
- 
-        <div class="comparison-select-group">
-          <div class="data-ex-form-cont">
-            <label class="form-label" style="color: white">Scenario A</label>
-            <select class="form-select w-100 custom-form-select" v-model="scenarioPreset1">
-              <option v-if="!scenarioPreset1" :value="null" disabled selected hidden>Choose preset</option>
-              <option v-for="name in presetNames" :key="name" :value="name" :disabled="name === scenarioPreset2">
-                {{ presetLabels[name] ?? name }}
-              </option>
-            </select>
-          </div>
-        </div>
- 
-        <div class="comparison-select-group">
-          <div class="data-ex-form-cont">
-            <label class="form-label" style="color: white">Scenario B</label>
-            <select class="form-select w-100 custom-form-select" v-model="scenarioPreset2">
-              <option v-if="!scenarioPreset2" :value="null" disabled selected hidden>Choose preset</option>
-              <option v-for="name in presetNames" :key="name" :value="name" :disabled="name === scenarioPreset1">
-                {{ presetLabels[name] ?? name }}
-              </option>
-            </select>
-          </div>
-        </div>
- 
-      </template>
- 
-    </div>
- 
-    <fieldset class="d-flex justify-content-center align-items-end gap-3 flex-wrap filters-row" :class="{ 'filters-disabled': !filtersUnlocked }" :disabled="!filtersUnlocked">
- 
-      <div class="data-ex-form-cont">
-        <label class="form-label" style="color: white">Domain</label>
-        <select class="form-select custom-form-select" v-model="domain" @change="onDomainChange">
-          <option :value="null">Any domain</option>
-          <option v-for="d in options.domains" :key="d" :value="d">{{ d }}</option>
-        </select>
-      </div>
- 
-      <div class="data-ex-form-cont">
-        <label class="form-label" style="color: white">Resource type</label>
-        <select class="form-select custom-form-select" v-model="subcategory" @change="resetSelection">
-          <option :value="null">Any type</option>
-          <option v-for="s in subcategoryOptions" :key="s" :value="s">{{ SUBCATEGORY_LABELS[s] ?? s }}</option>
-        </select>
-      </div>
- 
-      <div class="data-ex-form-cont">
-        <label class="form-label" style="color: white">Area</label>
-        <select class="form-select w-100 custom-form-select" v-model="regionGroup" @change="resetSelection">
-          <option :value="null">Any area</option>
-          <option v-for="g in options.regionGroups" :key="g" :value="g">{{ REGION_GROUP_LABELS[g] ?? g }}</option>
-        </select>
-      </div>
- 
-      <div class="data-ex-form-cont">
-        <label class="form-label" style="color: white">Operating System</label>
-        <select class="form-select w-100 custom-form-select" v-model="operatingSystem" @change="resetSelection">
-          <option :value="null">Any</option>
-          <option v-for="os in options.operatingSystems" :key="os" :value="os">{{ os }}</option>
-        </select>
-      </div>
- 
-      <div class="data-ex-form-cont">
-        <label class="form-label" style="color: white">DB engine</label>
-        <select class="form-select w-100 custom-form-select" v-model="dbEngine" :disabled="!engineOptions.length" @change="resetSelection">
-          <option :value="null">Any engine</option>
-          <option v-for="e in engineOptions" :key="e" :value="e">{{ e }}</option>
-        </select>
-      </div>
- 
-      <div class="data-ex-form-cont">
-        <label class="form-label" style="color: white">Pricing model</label>
-        <select class="form-select w-100 custom-form-select" v-model="pricingModel" @change="resetSelection">
-          <option :value="null">Any</option>
-          <option v-for="m in options.pricingModels" :key="m" :value="m">{{ PRICING_MODEL_LABELS[m] ?? m }}</option>
-        </select>
-      </div>
- 
-      <div class="data-ex-form-cont">
-        <button type="button" class="btn btn-outline-light" @click="resetFilters">Reset</button>
-      </div>
- 
-      <div>
-        <label class="form-label" style="color: white">Export</label>
-        <div class="data-ex-form-cont d-flex gap-3">
-          <button type="button" class="btn btn-outline-primary" :disabled="!record1 || !record2" @click="exportCSV">CSV</button>
-          <button type="button" class="btn btn-outline-primary" :disabled="!record1 || !record2" @click="exportJSON">JSON</button>
-        </div>
+
+        </template>
+
       </div>
 
-    </fieldset>  
-      
-  </div>
-  
-  <div class="text-center text-white-50 small mt-1">
-    {{ filteredRecords.length.toLocaleString() }} records match the current filters
-  </div>
-  <div v-if="noMatches" class="text-center text-white-50 small mt-1">No records match the current filters</div>
-  
-  <div v-if="record1 && record2" class="comparison-results">
-    <div v-if="comparabilityNotes.length" class="text-warning small mt-2">
-        <div v-for="note in comparabilityNotes" :key="note">⚠ {{ note }}</div>
-    </div>
-  </div>
- 
-  <div v-if="record1 || record2" class="comparison-container">
-    <div class="chart-host mb-5">
-      <MetricChart :records="chartRecords" :columns="CHART_COLUMNS" />
-    </div>
-  </div>
- 
-  <div v-if="record1 && record2" class="comparison-results">
- 
-    <div class="comparison-kpi-container">
- 
-      <div v-for="card in cards" :key="card.key" class="pricing-card mt-3">
- 
-        <div class="pricing-card-header">
-          <h3 class="pricing-card-title">{{ card.rec.instance_type || card.rec.skuName }}</h3>
-          <span class="pricing-badge" :class="card.rec.specs_complete ? 'pricing-badge-confirmed' : 'pricing-badge-inferred'">
-            {{ card.rec.specs_complete ? 'CONFIRMED' : 'INFERRED' }}
-          </span>
+      <fieldset class="d-flex justify-content-center align-items-end gap-3 flex-wrap filters-row"
+        :class="{ 'filters-disabled': !filtersUnlocked }" :disabled="!filtersUnlocked">
+
+        <div class="data-ex-form-cont">
+          <label class="form-label" style="color: white">Domain</label>
+          <select class="form-select custom-form-select" v-model="domain" @change="onDomainChange">
+            <option :value="null">Any domain</option>
+            <option v-for="d in options.domains" :key="d" :value="d">{{ d }}</option>
+          </select>
         </div>
- 
-        <div class="pricing-card-subtitle">
-          {{ providerFullNames[card.rec.provider] ?? card.rec.provider }} · {{ card.rec.provider }} - {{ card.rec.product_family ?? 'Unknown' }}
+
+        <div class="data-ex-form-cont">
+          <label class="form-label" style="color: white">Resource type</label>
+          <select class="form-select custom-form-select" v-model="subcategory" @change="resetSelection">
+            <option :value="null">Any type</option>
+            <option v-for="s in subcategoryOptions" :key="s" :value="s">{{ SUBCATEGORY_LABELS[s] ?? s }}</option>
+          </select>
         </div>
- 
-        <div v-if="compareMode === 'scenario'" class="pricing-card-subtitle text-white-50 small">
-          Top pick under "{{ presetLabels[card.preset] ?? card.preset }}" — score {{ (card.rec.score * 100).toFixed(1) }}%
+
+        <div class="data-ex-form-cont">
+          <label class="form-label" style="color: white">Area</label>
+          <select class="form-select w-100 custom-form-select" v-model="regionGroup" @change="resetSelection">
+            <option :value="null">Any area</option>
+            <option v-for="g in options.regionGroups" :key="g" :value="g">{{ REGION_GROUP_LABELS[g] ?? g }}</option>
+          </select>
         </div>
- 
-        <div class="pricing-card-specs">
-          {{ card.rec.vcpu_count ?? '–' }} vCPU · {{ card.rec.memory_gb ?? '–' }} GB RAM
+
+        <div class="data-ex-form-cont">
+          <label class="form-label" style="color: white">Operating System</label>
+          <select class="form-select w-100 custom-form-select" v-model="operatingSystem" @change="resetSelection">
+            <option :value="null">Any</option>
+            <option v-for="os in options.operatingSystems" :key="os" :value="os">{{ os }}</option>
+          </select>
         </div>
- 
-        <div class="pricing-card-price">{{ card.rec.effective_price_hr.toFixed(4) }}</div>
-        <div class="pricing-card-price-unit">{{ card.rec.currencyCode }} · per hour</div>
- 
-        <div class="pricing-card-estimates">
-          <div>Est. monthly: {{ card.rec.currencyCode }} {{ monthlyEstimate(card.rec)?.toFixed(2) }}</div>
-          <div>Est. annual: {{ card.rec.currencyCode }} {{ annualEstimate(card.rec)?.toFixed(2) }}</div>
-          <div v-if="card.rec.price_per_vcpu_hr != null">Per vCPU-hr: {{ card.rec.currencyCode }} {{ card.rec.price_per_vcpu_hr.toFixed(4) }}</div>
+
+        <div class="data-ex-form-cont">
+          <label class="form-label" style="color: white">DB engine</label>
+          <select class="form-select w-100 custom-form-select" v-model="dbEngine" :disabled="!engineOptions.length" @change="resetSelection">
+            <option :value="null">Any engine</option>
+            <option v-for="e in engineOptions" :key="e" :value="e">{{ e }}</option>
+          </select>
         </div>
- 
-        <div class="pricing-card-meta">
-          <div>
-            <span class="pricing-card-meta-label">Region</span>{{ card.rec.provider }} - {{ card.rec.region }}<template v-if="card.rec.region_name"> ({{ card.rec.region_name }})</template>
+
+        <div class="data-ex-form-cont">
+          <label class="form-label" style="color: white">Pricing model</label>
+          <select class="form-select w-100 custom-form-select" v-model="pricingModel" @change="resetSelection">
+            <option :value="null">Any</option>
+            <option v-for="m in options.pricingModels" :key="m" :value="m">{{ PRICING_MODEL_LABELS[m] ?? m }}</option>
+          </select>
+        </div>
+
+        <div class="data-ex-form-cont">
+          <button type="button" class="btn btn-outline-light" @click="resetFilters">Reset</button>
+        </div>
+
+        <div>
+          <label class="form-label" style="color: white">Export</label>
+          <div class="data-ex-form-cont d-flex gap-3">
+            <button type="button" class="btn btn-outline-primary" :disabled="!record1 || !record2" @click="exportCSV">CSV</button>
+            <button type="button" class="btn btn-outline-primary" :disabled="!record1 || !record2" @click="exportJSON">JSON</button>
           </div>
-          <div><span class="pricing-card-meta-label">Area</span>{{ REGION_GROUP_LABELS[card.rec.region_group] ?? card.rec.region_group ?? 'Unknown' }}</div>
-          <div><span class="pricing-card-meta-label">Type</span>{{ SUBCATEGORY_LABELS[card.rec.subcategory] ?? card.rec.subcategory }}</div>
-          <div><span class="pricing-card-meta-label">Pricing</span>{{ PRICING_MODEL_LABELS[card.rec.pricing_model] ?? card.rec.pricing_model }}</div>
-          <div v-if="card.rec.operating_system"><span class="pricing-card-meta-label">OS</span>{{ card.rec.operating_system }}</div>
-          <div v-if="card.rec.db_engine"><span class="pricing-card-meta-label">Engine</span>{{ card.rec.db_engine }}</div>
-          <div v-if="card.rec.deployment"><span class="pricing-card-meta-label">Deployment</span>{{ card.rec.deployment === 'multi_az' ? 'Multi-AZ' : 'Single-AZ' }}</div>
-          <div v-if="card.rec.tenancy"><span class="pricing-card-meta-label">Tenancy</span>{{ card.rec.tenancy }}</div>
         </div>
- 
+
+      </fieldset>
+
+    </div>
+
+    <div class="text-center text-white-50 small mt-1">
+      {{ filteredRecords.length.toLocaleString() }} records match the current filters
+    </div>
+    <div v-if="noMatches" class="text-center text-white-50 small mt-1">No records match the current filters</div>
+
+    <div v-if="record1 && record2" class="comparison-results">
+      <div v-if="comparabilityNotes.length" class="text-warning small mt-2">
+        <div v-for="note in comparabilityNotes" :key="note">⚠ {{ note }}</div>
       </div>
- 
     </div>
- 
-    <div class="table-responsive comparison-table-container">
-      <table class="comparison-table table">
-        <thead>
-          <tr>
-            <th>Metric</th>
-            <th>{{ sideLabels[0] }}</th>
-            <th>{{ sideLabels[1] }}</th>
-            <th>Delta</th>
-            <th>Winner</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="field in COMPARE_FIELDS" :key="field.id">
-            <td>{{ field.name }}</td>
-            <td>{{ valueFor(record1, field) ?? 'N/A' }}</td>
-            <td>{{ valueFor(record2, field) ?? 'N/A' }}</td>
-            <td v-if="deltaFor(field) !== null && deltaFor(field) !== undefined" :class="Number(deltaFor(field)) < 0 ? 'negative-delta' : 'positive-delta'">{{ deltaFor(field) }}%</td>
-            <td v-else>N/A</td>
-            <td>
-              <span v-if="winnerSide(field) !== null" class="winner-badge" :class="winnerSide(field) === 0 ? 'positive-badge' : 'negative-badge'">
-                {{ sideLabels[winnerSide(field)] }}
-              </span>
-              <span v-else>N/A</span>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+
+    <div v-if="record1 || record2" class="comparison-container">
+      <div class="tabs-wrapper">
+
+        <ul class="nav nav-tabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button type="button" class="nav-link" :class="{ active: activeTab === 'chart' }"
+              role="tab" :aria-selected="activeTab === 'chart'" @click="activeTab = 'chart'">
+              Chart
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button type="button" class="nav-link" :class="{ active: activeTab === 'details' }"
+              role="tab" :aria-selected="activeTab === 'details'" @click="activeTab = 'details'">
+              Details
+            </button>
+          </li>
+        </ul>
+
+        <div class="tab-content">
+
+          <!-- CHART TAB -->
+          <div v-if="activeTab === 'chart'" class="tab-pane fade show active" role="tabpanel">
+            <div class="chart-host mb-3">
+              <MetricChart :records="chartRecords" :columns="CHART_COLUMNS" />
+            </div>
+          </div>
+
+          <!-- DETAILS TAB (cards + table) -->
+          <div v-else class="tab-pane fade show active comparison-results" role="tabpanel">
+            <div v-if="!(record1 && record2)" class="tab-empty">
+              Select both sides to see the cards and comparison table.
+            </div>
+
+            <template v-else>
+              <div class="comparison-kpi-container">
+
+                <div v-for="card in cards" :key="card.key" class="pricing-card mt-3">
+
+                  <div class="pricing-card-header">
+                    <h3 class="pricing-card-title">{{ card.rec.instance_type || card.rec.skuName }}</h3>
+                    <span class="pricing-badge" :class="card.rec.specs_complete ? 'pricing-badge-confirmed' : 'pricing-badge-inferred'">
+                      {{ card.rec.specs_complete ? 'CONFIRMED' : 'INFERRED' }}
+                    </span>
+                  </div>
+
+                  <div class="pricing-card-subtitle">
+                    {{ providerFullNames[card.rec.provider] ?? card.rec.provider }} · {{ card.rec.provider }} - {{ card.rec.product_family ?? 'Unknown' }}
+                  </div>
+
+                  <div v-if="compareMode === 'scenario'" class="pricing-card-subtitle text-white-50 small">
+                    Top pick under "{{ presetLabels[card.preset] ?? card.preset }}" — score {{ (card.rec.score * 100).toFixed(1) }}%
+                  </div>
+
+                  <div class="pricing-card-specs">
+                    {{ card.rec.vcpu_count ?? '–' }} vCPU · {{ card.rec.memory_gb ?? '–' }} GB RAM
+                  </div>
+
+                  <div class="pricing-card-price">{{ card.rec.effective_price_hr.toFixed(4) }}</div>
+                  <div class="pricing-card-price-unit">{{ card.rec.currencyCode }} · per hour</div>
+
+                  <div class="pricing-card-estimates">
+                    <div>Est. monthly: {{ card.rec.currencyCode }} {{ monthlyEstimate(card.rec)?.toFixed(2) }}</div>
+                    <div>Est. annual: {{ card.rec.currencyCode }} {{ annualEstimate(card.rec)?.toFixed(2) }}</div>
+                    <div v-if="card.rec.price_per_vcpu_hr != null">Per vCPU-hr: {{ card.rec.currencyCode }} {{ card.rec.price_per_vcpu_hr.toFixed(4) }}</div>
+                  </div>
+
+                  <div class="pricing-card-meta">
+                    <div>
+                      <span class="pricing-card-meta-label">Region</span>{{ card.rec.provider }} - {{ card.rec.region }}<template v-if="card.rec.region_name"> ({{ card.rec.region_name }})</template>
+                    </div>
+                    <div><span class="pricing-card-meta-label">Area</span>{{ REGION_GROUP_LABELS[card.rec.region_group] ?? card.rec.region_group ?? 'Unknown' }}</div>
+                    <div><span class="pricing-card-meta-label">Type</span>{{ SUBCATEGORY_LABELS[card.rec.subcategory] ?? card.rec.subcategory }}</div>
+                    <div><span class="pricing-card-meta-label">Pricing</span>{{ PRICING_MODEL_LABELS[card.rec.pricing_model] ?? card.rec.pricing_model }}</div>
+                    <div v-if="card.rec.operating_system"><span class="pricing-card-meta-label">OS</span>{{ card.rec.operating_system }}</div>
+                    <div v-if="card.rec.db_engine"><span class="pricing-card-meta-label">Engine</span>{{ card.rec.db_engine }}</div>
+                    <div v-if="card.rec.deployment"><span class="pricing-card-meta-label">Deployment</span>{{ card.rec.deployment === 'multi_az' ? 'Multi-AZ' : 'Single-AZ' }}</div>
+                    <div v-if="card.rec.tenancy"><span class="pricing-card-meta-label">Tenancy</span>{{ card.rec.tenancy }}</div>
+                  </div>
+
+                </div>
+
+              </div>
+
+              <div class="table-responsive comparison-table-container mt-4">
+                <table class="comparison-table table">
+                  <thead>
+                    <tr>
+                      <th>Metric</th>
+                      <th>{{ sideLabels[0] }}</th>
+                      <th>{{ sideLabels[1] }}</th>
+                      <th>Delta</th>
+                      <th>Winner</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="field in COMPARE_FIELDS" :key="field.id">
+                      <td>{{ field.name }}</td>
+                      <td>{{ valueFor(record1, field) ?? 'N/A' }}</td>
+                      <td>{{ valueFor(record2, field) ?? 'N/A' }}</td>
+                      <td v-if="deltaFor(field) !== null && deltaFor(field) !== undefined" :class="Number(deltaFor(field)) < 0 ? 'negative-delta' : 'positive-delta'">{{ deltaFor(field) }}%</td>
+                      <td v-else>N/A</td>
+                      <td>
+                        <span v-if="winnerSide(field) !== null" class="winner-badge" :class="winnerSide(field) === 0 ? 'positive-badge' : 'negative-badge'">
+                          {{ sideLabels[winnerSide(field)] }}
+                        </span>
+                        <span v-else>N/A</span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </template>
+          </div>
+
+        </div>
+      </div>
     </div>
-  </div>
- 
+
   </template>
+
 </div>
 </template>
 
