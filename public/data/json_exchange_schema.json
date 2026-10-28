@@ -1,0 +1,175 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Unified Cloud Pricing JSON Exchange",
+  "description": "JSON exchange representation of the canonical cloud list-price catalog. Same 24 fields as unified_pricing.table-schema.json; optional missing CSV values are represented by null or omitted properties. Pricing units and pricing dimensions must be preserved when comparing prices.",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "properties": {
+      "ServiceProviderName": {
+        "type": "string",
+        "title": "Service Provider",
+        "description": "FOCUS v1.4 ServiceProviderName, Name of the entity that provides the service. Constant per source file",
+        "minLength": 1,
+        "enum": [ "AWS", "Azure", "GCP" ]
+      },
+      "ServiceCategory": {
+        "type": "string",
+        "title": "Service category",
+        "description": "FOCUS v1.4 ServiceCategory, Highest-level classification of the service, used for cross-provider comparison. Container services are classified as Compute and backup services as Storage",
+        "minLength": 1,
+        "enum": [
+          "AI and Machine Learning",
+          "Analytics",
+          "Business Applications",
+          "Compute",
+          "Databases",
+          "Developer Tools",
+          "Multicloud",
+          "Identity",
+          "Integration",
+          "Internet of Things",
+          "Management and Governance",
+          "Media",
+          "Migration",
+          "Mobile",
+          "Networking",
+          "Security",
+          "Storage",
+          "Web",
+          "Other"
+        ]
+      },
+      "ServiceName": {
+        "type": "string",
+        "title": "Service name",
+        "description": "FOCUS v1.4 ServiceName, Display name of the service offering (e.g. Virtual Machines, Compute Engine, Amazon RDS). Each ServiceName belongs to exactly one ServiceCategory",
+        "minLength": 1
+      },
+      "SkuId": {
+        "type": "string",
+        "title": "SKU id",
+        "description": "FOCUS v1.4 SkuId, Provider-specified identifier of the SKU. Unique only together with ServiceProviderName. The same SkuId can appear in several rows that differ in price tier, commitment term or pricing category",
+        "minLength": 1
+      },
+      "ChargeDescription": {
+        "type": [ "string", "null" ],
+        "title": "Charge description",
+        "description": "FOCUS v1.4 ChargeDescription, Human-readable description of the charge, for display only"
+      },
+      "RegionId": {
+        "type": [ "string", "null" ],
+        "title": "Region id",
+        "description": "FOCUS v1.4 RegionId, Provider region identifier (e.g. southamerica-west1, brazilsouth). Empty for rows without a single region, such as AWS data transfer between regions"
+      },
+      "PricingCategory": {
+        "type": [ "string", "null" ],
+        "title": "Pricing category",
+        "description": "FOCUS v1.4 PricingCategory, Pricing model of the price. Standard = predetermined rate, including on-demand, pay-as-you-go and tiered pricing. Dynamic = variable rate set by the provider (Spot, preemptible, Azure Low Priority). Committed = reduced price under a commitment discount (reservations, savings plans, committed use discounts). Other = none of these",
+        "enum": [ "Standard", "Dynamic", "Committed", "Other", null ]
+      },
+      "PricingUnit": {
+        "type": "string",
+        "title": "Pricing unit",
+        "description": "FOCUS v1.4 PricingUnit, Normalized unit that ListUnitPrice refers to. Provider spellings (Hrs, hours, GBy.h, ...) are mapped to these values before import",
+        "minLength": 1,
+        "enum": [ "Hour", "Day", "Month", "Year", "GB", "GB-Hour", "GB-Month", "IOPS-Month", "MBps-Month", "vCPU-Hour", "ACU-Hour", "Tag-Month", "Request" ]
+      },
+      "ListUnitPrice": {
+        "type": "number",
+        "title": "List unit price (USD)",
+        "description": "FOCUS v1.4 ListUnitPrice, List price per PricingUnit, in USD",
+        "minimum": 0
+      },
+      "SkuName": {
+        "type": [ "string", "null" ],
+        "title": "SKU name / instance type",
+        "description": "Custom column, Instance type or SKU name (e.g. Standard_D14, db.r5d.24xlarge). Empty when the provider data has no such name (GCP)"
+      },
+      "PriceComponent": {
+        "type": "string",
+        "title": "Price component",
+        "description": "Custom column, What the price covers: a whole instance or one component such as CPU or RAM (GCP prices these separately). Not FOCUS ResourceType, which describes a billed resource and must be null without a ResourceId.",
+        "minLength": 1,
+        "enum": [ "Instance", "CPU", "RAM", "Storage", "Operations", "IOPS", "Throughput", "License", "Backup", "DataTransfer", "Network", "Other" ]
+      },
+      "StorageClass": {
+        "type": [ "string", "null" ],
+        "title": "Storage class",
+        "description": "Custom column, Conditional: storage services. Access tier of the stored data: Standard, InfrequentAccess (S3 IA, Azure Cool, Nearline), Cold (Coldline), Archive, or Automatic (S3 Intelligent-Tiering, Autoclass). Empty otherwise",
+        "enum": [ "Standard", "InfrequentAccess", "Cold", "Archive", "Automatic", "Other", null ]
+      },
+      "ServiceTier": {
+        "type": [ "string", "null" ],
+        "title": "Service tier",
+        "description": "Custom column, Conditional: databases and compute. Provider edition or tier that changes the price for the same size (e.g. General Purpose, Memory Optimized, Enterprise, Enterprise Plus). Empty otherwise"
+      },
+      "RegionGroup": {
+        "type": [ "string", "null" ],
+        "title": "Region group",
+        "description": "Custom column, Coarse geographic group derived from the region by lookup table, so regions of different providers can be compared. Empty when RegionId is empty",
+        "enum": [ "North America", "South America", "Europe", "Asia Pacific", "Middle East", "Africa", "Global", null ]
+      },
+      "CommitmentTerm": {
+        "type": [ "string", "null" ],
+        "title": "Commitment term",
+        "description": "Custom column, Length of the commitment on Committed prices. Empty for Standard and Dynamic prices. FOCUS has no commitment term column",
+        "enum": [ "1Y", "3Y", null ]
+      },
+      "CommitmentType": {
+        "type": [ "string", "null" ],
+        "title": "Commitment type",
+        "description": "Custom column, Kind of commitment behind a Committed price: Reservation (bound to a specific resource, usage-based) or SavingsPlan (spend-based). Empty for Standard and Dynamic prices. FOCUS CommitmentDiscountType requires a CommitmentDiscountId, which a price catalog does not have",
+        "enum": [ "Reservation", "SavingsPlan", null ]
+      },
+      "Tenancy": {
+        "type": [ "string", "null" ],
+        "title": "Tenancy",
+        "description": "Custom column, Shared hardware (default) or dedicated / sole-tenant hardware. Empty when not applicable",
+        "enum": [ "Shared", "Dedicated", null ]
+      },
+      "OperatingSystem": {
+        "type": [ "string", "null" ],
+        "title": "Operating system",
+        "description": "Custom column, Operating system when the price depends on it. Empty otherwise"
+      },
+      "TierStart": {
+        "type": [ "number", "null" ],
+        "title": "Tier start",
+        "description": "Custom column, Start of the price tier, in PricingUnit terms. Empty when the price has no tiers",
+        "minimum": 0
+      },
+      "TierEnd": {
+        "type": [ "number", "null" ],
+        "title": "Tier end",
+        "description": "Custom column, End of the price tier, in PricingUnit terms. Empty when the tier is open-ended (AWS writes Inf)",
+        "minimum": 0
+      },
+      "DatabaseEngine": {
+        "type": [ "string", "null" ],
+        "title": "Database engine",
+        "description": "Custom column, Engine of database services (e.g. MySQL, PostgreSQL, SQL Server). Empty otherwise"
+      },
+      "DeploymentOption": {
+        "type": [ "string", "null" ],
+        "title": "Deployment option",
+        "description": "Custom column, Availability setup of database services (e.g. Single-AZ, Multi-AZ). Empty otherwise"
+      },
+      "VCpu": {
+        "type": [ "number", "null" ],
+        "title": "vCPU count",
+        "description": "Custom column, Number of vCPUs, used as a performance proxy. Empty when it could not be extracted",
+        "minimum": 0
+      },
+      "MemoryGiB": {
+        "type": [ "number", "null" ],
+        "title": "Memory (GiB)",
+        "description": "Custom column, Memory in GiB, used as a performance proxy. Empty when it could not be extracted",
+        "minimum": 0
+      }
+    },
+    "required": [ "ServiceProviderName", "ServiceCategory", "ServiceName", "SkuId", "PricingUnit", "ListUnitPrice", "PriceComponent" ],
+    "additionalProperties": false
+  }
+}
+

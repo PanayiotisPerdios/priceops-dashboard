@@ -1,8 +1,5 @@
 import { shallowRef, ref, computed } from 'vue';
-import { loadUnifiedPricing, parseUnifiedCsv, csvToObjects, deriveFilterOptions } from '@/utils/unifiedPricingLoader';
-import { isAppSchema, parseAppRows } from '@/utils/appSchemaImport';
-
-export const LOADER_OPTIONS = { basis: 'resource' };
+import { loadUnifiedPricing, importPricingData, deriveFilterOptions } from '@/utils/pricingDataLoader';
 
 const records = shallowRef([]);
 const loading = ref(false);
@@ -10,6 +7,7 @@ const loaded = ref(false);
 const error = ref(null);
 const source = ref(null);      
 const sourceName = ref('');    
+const importReport = ref(null);
 let request = null;
 
 export function loadDefault() {
@@ -26,14 +24,17 @@ export function loadDefault() {
   loading.value = true;
   error.value = null;
 
-  request = loadUnifiedPricing(undefined, LOADER_OPTIONS)
-    .then(data => {
+  request = loadUnifiedPricing()
+    .then(({ records: data, report }) => {
       if (source.value !== 'default') {
         return;
       }
 
       records.value = data;
+      importReport.value = report;
       loaded.value = true;
+
+      console.log('Default import report:', report);
     })
     .catch(e => {
       error.value = e;
@@ -43,19 +44,27 @@ export function loadDefault() {
     .finally(() => {
       loading.value = false;
     });
+
   return request;
 }
 
-export async function importCsvFile(file) {
+export async function importPricingFile(file) {
+  importReport.value = null;
+  
   const text = await file.text();
-  const rows = csvToObjects(text);
+  
+  const extension = file.name.split('.').pop().toLowerCase();
 
-  const data = isAppSchema(rows[0])
-    ? parseAppRows(rows)
-    : parseUnifiedCsv(text, LOADER_OPTIONS);
+  if (extension !== 'csv' && extension !== 'json') {
+    throw new Error('Unsupported file format. Please upload CSV or JSON.');
+  }
+
+  const { records: data, report } = await importPricingData(text, extension);
+
+  importReport.value = report;
 
   if (data.length === 0) {
-    throw new Error('No usable rows. Need at least provider, region and a price per hour.');
+    throw new Error('No usable pricing records found.');
   }
 
   records.value = data;
@@ -63,7 +72,11 @@ export async function importCsvFile(file) {
   sourceName.value = file.name;
   loaded.value = true;
   error.value = null;
+
+  console.log('Custom import report:', report);
+
   return data.length;
+
 }
 
 const options = computed(function () {
@@ -72,5 +85,5 @@ const options = computed(function () {
 
 export function usePricingData({ autoLoad = true } = {}) {
   if (autoLoad && !source.value) loadDefault();
-  return { records, loading, loaded, error, options, source, sourceName };
+  return { records, loading, loaded, error, options, source, sourceName, importReport };
 }
