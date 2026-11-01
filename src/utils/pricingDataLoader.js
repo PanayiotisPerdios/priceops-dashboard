@@ -1,6 +1,6 @@
 import { uniqSorted } from '@/utils/calculationServices';
 import { CATEGORY_TO_DOMAIN, PROVIDER_LABELS, BASE_URL, DEFAULT_EFFECTIVE_DATE, 
-GENERIC_SKU  } from '@/data/constants'
+GENERIC_SKU, FOCUS_SUBCATEGORIES  } from '@/data/constants'
 import Papa from 'papaparse';
 import Ajv2020 from 'ajv/dist/2020.js';
 
@@ -59,12 +59,43 @@ function toStr(value) {
   return String(value);
 }
 
+export function validateCrossFields(row) {
+    const errors = [];
+    const category = row.ServiceCategory;
+    const subcategory = row.ServiceSubcategory;
+
+    if (subcategory != null && subcategory !== '') {
+        const allowed = FOCUS_SUBCATEGORIES[category];
+
+        if (!allowed || !allowed.includes(subcategory)) {
+            errors.push(`ServiceSubcategory "${subcategory}" does not belong to ServiceCategory "${category}"`);
+        }
+    }
+
+    const hasRegionId = row.RegionId != null && row.RegionId !== '';
+
+    const hasRegionName = row.RegionName != null && row.RegionName !== '';
+
+    if (hasRegionId !== hasRegionName) {
+        errors.push('RegionId and RegionName must either both be provided or both be empty');
+    }
+
+    const start = row.TierStart;
+    const end = row.TierEnd;
+
+    if (start != null && start !== '' && end != null && end !== '' && Number.isFinite(Number(start)) && Number.isFinite(Number(end)) && Number(end) < Number(start)) {
+        errors.push('TierEnd must be >= TierStart');
+    }
+
+    return errors;
+}
+
 export function csvToObjects(text) {
     return Papa.parse(text, {
         header: true,
         delimiter: ',',
         skipEmptyLines: true,
-        transformHeader: h => h.trim()
+        transformHeader: header => header.trim()
     });
 }
 
@@ -113,6 +144,7 @@ export function validateRows(rows, schema){
                 continue;
             }
 
+            //Number Validation
             if (field.type === 'number'){
                 if (typeof value !== 'string' && typeof value !== 'number') {
                     rowErrors.push(`${field.name} must be a number`);
@@ -129,20 +161,20 @@ export function validateRows(rows, schema){
                 }
             }
 
+            //String Validation
             if (field.type === 'string' && typeof value !== 'string') {
                 rowErrors.push(`${field.name} must be a string`);
                 continue;
             }
 
+            //Enum Validation
             if (constraints.enum && !constraints.enum.includes(value)){
                 rowErrors.push(`Invalid ${field.name}: ${value}`);
             }
 
         }
 
-        if (row.TierStart !== '' && row.TierEnd !== '' && row.TierStart != null && row.TierEnd != null && Number.isFinite(Number(row.TierStart)) && Number.isFinite(Number(row.TierEnd)) && Number(row.TierEnd) < Number(row.TierStart)) {
-            rowErrors.push('TierEnd must be >= TierStart');
-        }
+        rowErrors.push(...validateCrossFields(row));
 
         if (rowErrors.length > 0) {
             rejectedRows.push({row: index + 1,errors: rowErrors});
@@ -168,7 +200,7 @@ export async function parseCSVRows(text){
         throw new Error(`CSV header validation failed:\n${headerErrors.join('\n')}`);
     }
 
-    const {validRows, rejectedRows } = validateRows(parsed.data,csvSchema);
+    const { rejectedRows } = validateRows(parsed.data,csvSchema);
 
     const fatalParseErrors = parsed.errors.filter(error => !Number.isInteger(error.row) || error.row < 0);
     
@@ -247,9 +279,10 @@ export async function parseJSONRows(text) {
             continue;
         }
 
-        // Same cross-field rule as CSV
-        if (row.TierStart != null && row.TierEnd != null && row.TierEnd < row.TierStart) {
-            rejectedRows.push({ row: index + 1, errors: ['TierEnd must be >= TierStart'] });
+        const crossFieldErrors = validateCrossFields(row);
+
+        if (crossFieldErrors.length > 0){
+            rejectedRows.push({ row: index + 1, errors: crossFieldErrors })
             continue;
         }
 
@@ -287,26 +320,42 @@ export function mapRows(row){
     return {
         ServiceProviderName: toStr(row.ServiceProviderName),
         ServiceCategory: toStr(row.ServiceCategory),
+        ServiceSubcategory: toStr(row.ServiceSubcategory),
         ServiceName: toStr(row.ServiceName),
+
         SkuId: toStr(row.SkuId),
+        SkuPriceId: toStr(row.SkuPriceId),
+        SkuMeter: toStr(row.SkuMeter),
+        SkuName: toStr(row.SkuName),
+
         ChargeDescription: toStr(row.ChargeDescription),
+
         RegionId: toStr(row.RegionId),
+        RegionName: toStr(row.RegionName),
+        RegionGroup: toStr(row.RegionGroup),
+
         PricingCategory: toStr(row.PricingCategory),
+        PricingCurrency: toStr(row.PricingCurrency),
         PricingUnit: toStr(row.PricingUnit),
         ListUnitPrice: toNum(row.ListUnitPrice),
-        SkuName: toStr(row.SkuName),
+
         PriceComponent: toStr(row.PriceComponent),
+
         StorageClass: toStr(row.StorageClass),
         ServiceTier: toStr(row.ServiceTier),
-        RegionGroup: toStr(row.RegionGroup),
+
         CommitmentTerm: toStr(row.CommitmentTerm),
         CommitmentType: toStr(row.CommitmentType),
+
         Tenancy: toStr(row.Tenancy),
         OperatingSystem: toStr(row.OperatingSystem),
+
         TierStart: toNum(row.TierStart),
         TierEnd: toNum(row.TierEnd),
+
         DatabaseEngine: toStr(row.DatabaseEngine),
         DeploymentOption: toStr(row.DeploymentOption),
+
         VCpu: toNum(row.VCpu),
         MemoryGiB: toNum(row.MemoryGiB)
     };
@@ -321,12 +370,16 @@ export function deriveFilterOptions(records) {
     return {
         providers: uniqueValues(records, r => r.ServiceProviderName),
         categories: uniqueValues(records, r => r.ServiceCategory),
+        subcategories: uniqueValues(records, r => r.ServiceSubcategory),
         services: uniqueValues(records, r => r.ServiceName),
+        skuMeters: uniqueValues(records, r => r.SkuMeter),
         regions: uniqueValues(records, r => r.RegionId),
+        regionNames: uniqueValues(records, r => r.RegionName),
         regionGroups: uniqueValues(records, r => r.RegionGroup),
         operatingSystems: uniqueValues(records, r => r.OperatingSystem),
         dbEngines: uniqueValues(records, r => r.DatabaseEngine),
         pricingModels: uniqueValues(records, r => r.PricingCategory),
+        pricingCurrencies: uniqueValues(records, r => r.PricingCurrency),
         pricingUnits: uniqueValues(records, r => r.PricingUnit),
         priceComponents: uniqueValues(records, r => r.PriceComponent),
         storageClasses: uniqueValues(records, r => r.StorageClass),

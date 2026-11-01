@@ -3,14 +3,19 @@ import { ref, computed, watch } from 'vue';
 import { usePricingData } from '@/composables/usePricingData';
 import MetricChart from '@/components/MetricChart.vue';
 import { CHART_COLUMNS, TABLE_PAGE_SIZE, CHART_LIMIT } from '@/data/constants';
-import { colorFor, uniqSorted, median, fmt } from '@/utils/calculationServices';
+import { colorFor, median, fmt } from '@/utils/calculationServices';
 import { exportRowsCSV, exportRowsJSON } from '@/utils/exportHelpers';
 
 const { records, options, loading, error, sourceName } = usePricingData();
-const activeTab = ref('chart');
+const activeTab = ref('table');
+const showAdvancedFilters = ref(false);
 
 const provider = ref(null);
 const category = ref(null);
+const subcategory = ref(null);
+const skuMeter = ref(null);
+const regionName = ref(null);
+const pricingCurrency = ref(null);
 const service = ref(null);
 const regionGroup = ref(null);
 const region = ref(null);
@@ -31,12 +36,22 @@ const maxPrice = ref(null);
 const search = ref('');
 const onlyKnownSpecs = ref(false);
 
+const subcategoryOptions = computed(() => (options.value.subcategories ?? []).filter(value =>
+  records.value.some(r => r.ServiceSubcategory === value && (!category.value || r.ServiceCategory === category.value))
+));
+
 const serviceOptions = computed(() => options.value.services.filter(value =>
   records.value.some(r => r.ServiceName === value && (!category.value || r.ServiceCategory === category.value))
 ));
+
 const engineOptions = computed(() => options.value.dbEngines.filter(value =>
   records.value.some(r => r.DatabaseEngine === value && (!category.value || r.ServiceCategory === category.value))
 ));
+
+const regionNameOptions = computed(() => (options.value.regionNames ?? []).filter(value =>
+  records.value.some(r => r.RegionName === value && (!provider.value || r.ServiceProviderName === provider.value) && (!regionGroup.value || r.RegionGroup === regionGroup.value))
+));
+
 const regionOptions = computed(() => options.value.regions.filter(value =>
   records.value.some(r => r.RegionId === value && (!provider.value || r.ServiceProviderName === provider.value) && (!regionGroup.value || r.RegionGroup === regionGroup.value))));
 
@@ -44,6 +59,10 @@ const filteredRecords = computed(() => {
   const selections = [
     [provider.value, 'ServiceProviderName'],
     [category.value, 'ServiceCategory'],
+    [subcategory.value, 'ServiceSubcategory'],
+    [skuMeter.value, 'SkuMeter'],
+    [regionName.value, 'RegionName'],
+    [pricingCurrency.value, 'PricingCurrency'],
     [service.value, 'ServiceName'],
     [regionGroup.value, 'RegionGroup'],
     [region.value, 'RegionId'],
@@ -59,6 +78,7 @@ const filteredRecords = computed(() => {
     [tenancy.value, 'Tenancy'],
     [deploymentOption.value, 'DeploymentOption'],
   ];
+
   const query = search.value.trim().toLowerCase();
   return records.value.filter(record => {
     if (selections.some(([value, key]) => value != null && record[key] !== value)) return false;
@@ -66,7 +86,7 @@ const filteredRecords = computed(() => {
     if (minMemory.value !== null && minMemory.value !== '' && (record.MemoryGiB == null || record.MemoryGiB < Number(minMemory.value))) return false;
     if (maxPrice.value !== null && maxPrice.value !== '' && (record.ListUnitPrice == null || record.ListUnitPrice > Number(maxPrice.value))) return false;
     if (onlyKnownSpecs.value && (record.VCpu == null || record.MemoryGiB == null)) return false;
-    if (query && ![record.SkuName, record.SkuId, record.ServiceName, record.ChargeDescription]
+    if (query && ![record.SkuName, record.SkuId, record.SkuPriceId, record.SkuMeter, record.ServiceName, record.ServiceSubcategory, record.RegionName, record.ChargeDescription]
       .some(value => String(value ?? '').toLowerCase().includes(query))) return false;
     return true;
   });
@@ -75,15 +95,20 @@ const filteredRecords = computed(() => {
 const COLUMNS = [
   { key: 'ServiceProviderName', label: 'Provider' },
   { key: 'ServiceCategory', label: 'Category' },
+  { key: 'ServiceSubcategory', label: 'Subcategory' },
   { key: 'ServiceName', label: 'Service' },
   { key: 'SkuName', label: 'SKU name' },
   { key: 'SkuId', label: 'SKU ID' },
+  { key: 'SkuPriceId', label: 'SKU price ID' },
+  { key: 'SkuMeter', label: 'SKU meter' },
   { key: 'RegionId', label: 'Region' },
+  { key: 'RegionName', label: 'Region name' },
   { key: 'OperatingSystem', label: 'OS' },
   { key: 'VCpu', label: 'vCPU', numeric: true },
   { key: 'MemoryGiB', label: 'Memory (GiB)', numeric: true },
   { key: 'ListUnitPrice', label: 'List unit price', numeric: true },
   { key: 'PricingUnit', label: 'Unit' },
+  { key: 'PricingCurrency', label: 'Currency' },
   { key: 'PricingCategory', label: 'Pricing category' },
   { key: 'PriceComponent', label: 'Price component' },
 ];
@@ -143,11 +168,19 @@ function qualityClass(score) {
 */
 
 const providerStats = computed(() => {
-  if (!pricingUnit.value) return [];
+  if (!pricingUnit.value) {
+    return [];
+  } 
+
   const groups = new Map();
+
   for (const record of filteredRecords.value) {
     const name = record.ServiceProviderName;
-    if (!groups.has(name)) groups.set(name, []);
+
+    if (!groups.has(name)) {
+      groups.set(name, []);
+    }
+    
     groups.get(name).push(record);
   }
   return [...groups].map(([name, rows]) => {
@@ -179,6 +212,7 @@ const chartRecords = computed(() => sortedRecords.value.slice(0, CHART_LIMIT).ma
 // RESETS
 function onCategoryChange() { 
   service.value = null; 
+  subcategory.value = null;
   dbEngine.value = null; 
 }
 
@@ -186,6 +220,10 @@ function onCategoryChange() {
 function resetFilters() {
   provider.value = null;
   category.value = null;
+  subcategory.value = null;
+  skuMeter.value = null;
+  regionName.value = null;
+  pricingCurrency.value = null;
   service.value = null;
   regionGroup.value = null;
   region.value = null;
@@ -252,18 +290,18 @@ watch(sourceName, resetFilters);
       </div>
 
       <div class="data-ex-form-cont">
-        <label class="form-label" style="color: white">Service</label>
-        <select class="form-select w-100 custom-form-select" v-model="service">
-          <option :value="null">Any service</option>
-          <option v-for="s in serviceOptions" :key="s" :value="s">{{ s }}</option>
+        <label class="form-label" style="color: white">Subcategory</label>
+        <select class="form-select w-100 custom-form-select" v-model="subcategory">
+          <option :value="null">Any subcategory</option>
+          <option v-for="s in subcategoryOptions" :key="s" :value="s">{{ s }}</option>
         </select>
       </div>
 
       <div class="data-ex-form-cont">
-        <label class="form-label" style="color: white">Area</label>
-        <select class="form-select w-100 custom-form-select" v-model="regionGroup" @change="region = null">
-          <option :value="null">Any area</option>
-          <option v-for="g in options.regionGroups" :key="g" :value="g">{{ g }}</option>
+        <label class="form-label" style="color: white">Service</label>
+        <select class="form-select w-100 custom-form-select" v-model="service">
+          <option :value="null">Any service</option>
+          <option v-for="s in serviceOptions" :key="s" :value="s">{{ s }}</option>
         </select>
       </div>
   
@@ -272,30 +310,6 @@ watch(sourceName, resetFilters);
         <select class="form-select w-100 custom-form-select" v-model="region">
           <option :value="null">Any region</option>
           <option v-for="r in regionOptions" :key="r" :value="r">{{ r }}</option>
-        </select>
-      </div>
-  
-      <div class="data-ex-form-cont">
-        <label class="form-label" style="color: white">Operating System</label>
-        <select class="form-select w-100 custom-form-select" v-model="operatingSystem">
-          <option :value="null">Any</option>
-          <option v-for="os in options.operatingSystems" :key="os" :value="os">{{ os }}</option>
-        </select>
-      </div>
-  
-      <div class="data-ex-form-cont">
-        <label class="form-label" style="color: white">DB engine</label>
-        <select class="form-select w-100 custom-form-select" v-model="dbEngine" :disabled="!engineOptions.length">
-          <option :value="null">Any engine</option>
-          <option v-for="e in engineOptions" :key="e" :value="e">{{ e }}</option>
-        </select>
-      </div>
-  
-      <div class="data-ex-form-cont">
-        <label class="form-label" style="color: white">Pricing category</label>
-        <select class="form-select w-100 custom-form-select" v-model="pricingModel">
-          <option :value="null">Any pricing category</option>
-          <option v-for="m in options.pricingModels" :key="m" :value="m">{{ m }}</option>
         </select>
       </div>
 
@@ -308,104 +322,163 @@ watch(sourceName, resetFilters);
       </div>
 
       <div class="data-ex-form-cont">
-        <label class="form-label" style="color: white">Price component</label>
-        <select class="form-select w-100 custom-form-select" v-model="priceComponent">
-          <option :value="null">Any component</option>
-          <option v-for="c in options.priceComponents" :key="c" :value="c">{{ c }}</option>
-        </select>
-      </div>
-
-      <div class="data-ex-form-cont">
-        <label class="form-label" style="color: white">Storage class</label>
-        <select class="form-select w-100 custom-form-select" v-model="storageClass">
-          <option :value="null">Any storage class</option>
-          <option v-for="s in options.storageClasses" :key="s" :value="s">{{ s }}</option>
-        </select>
-      </div>
-
-      <div class="data-ex-form-cont">
-        <label class="form-label" style="color: white">Service tier</label>
-        <select class="form-select w-100 custom-form-select" v-model="serviceTier">
-          <option :value="null">Any tier</option>
-          <option v-for="t in options.serviceTiers" :key="t" :value="t">{{ t }}</option>
-        </select>
-      </div>
-
-      <div class="data-ex-form-cont">
-        <label class="form-label" style="color: white">Commitment term</label>
-        <select class="form-select w-100 custom-form-select" v-model="commitmentTerm">
-          <option :value="null">Any term</option>
-          <option v-for="t in options.commitmentTerms" :key="t" :value="t">{{ t }}</option>
-        </select>
-      </div>
-
-      <div class="data-ex-form-cont">
-        <label class="form-label" style="color: white">Commitment type</label>
-        <select class="form-select w-100 custom-form-select" v-model="commitmentType">
-          <option :value="null">Any commitment</option>
-          <option v-for="t in options.commitmentTypes" :key="t" :value="t">{{ t }}</option>
-        </select>
-      </div>
-
-      <div class="data-ex-form-cont">
-        <label class="form-label" style="color: white">Tenancy</label>
-        <select class="form-select w-100 custom-form-select" v-model="tenancy">
-          <option :value="null">Any tenancy</option>
-          <option v-for="t in options.tenancies" :key="t" :value="t">{{ t }}</option>
-        </select>
-      </div>
-
-      <div class="data-ex-form-cont">
-        <label class="form-label" style="color: white">Deployment</label>
-        <select class="form-select w-100 custom-form-select" v-model="deploymentOption">
-          <option :value="null">Any deployment</option>
-          <option v-for="d in options.deploymentOptions" :key="d" :value="d">{{ d }}</option>
-        </select>
-      </div>
-
-    </div>
-
-    <div class="d-flex justify-content-center align-items-end gap-3 flex-wrap">
-
-      <div class="data-ex-form-cont">
-        <label class="form-label" style="color: white">Min vCPU</label>
-        <input type="number" min="0" class="form-control custom-form-select" v-model="minVcpu" placeholder="Any" />
-      </div>
-
-      <div class="data-ex-form-cont">
-        <label class="form-label" style="color: white">Min Memory (GiB)</label>
-        <input type="number" min="0" class="form-control custom-form-select" v-model="minMemory" placeholder="Any" />
-      </div>
-
-      <div class="data-ex-form-cont">
-        <label class="form-label" style="color: white">Max list unit price</label>
-        <input type="number" min="0" step="any" class="form-control custom-form-select" v-model="maxPrice" placeholder="Any" />
-      </div>
-
-      <div class="data-ex-form-cont">
         <label class="form-label" style="color: white">Search SKU / service</label>
         <input type="text" class="form-control custom-form-select" v-model="search" placeholder="SKU, ID, service…" />
       </div>
 
-      <div class="data-ex-form-cont form-check text-white">
-        <input id="known-specs" type="checkbox" class="form-check-input" v-model="onlyKnownSpecs" />
-        <label for="known-specs" class="form-check-label">Known vCPU + memory only</label>
-      </div>
-
-      <div class="data-ex-form-cont">
+      <div class="d-flex justify-content-center align-items-end gap-3 flex-wrap">  
         <button type="button" class="btn btn-outline-light" @click="resetFilters">Reset</button>
-      </div>
-
-      <div>
-        <label class="form-label" style="color: white">Export</label>
-        <div class="data-ex-form-cont d-flex gap-3">
-          <button type="button" class="btn btn-outline-primary" :disabled="!filteredRecords.length" @click="exportCSV">CSV</button>
-          <button type="button" class="btn btn-outline-primary" :disabled="!filteredRecords.length" @click="exportJSON">JSON</button>
+        <div>
+          <label class="form-label" style="color: white">Export</label>
+          <div class="data-ex-form-cont d-flex gap-3">
+            <button type="button" class="btn btn-outline-primary" :disabled="!filteredRecords.length" @click="exportCSV">CSV</button>
+            <button type="button" class="btn btn-outline-primary" :disabled="!filteredRecords.length" @click="exportJSON">JSON</button>
+          </div>
         </div>
       </div>
 
     </div>
 
+     <button type="button" class="advanced-filters-toggle" :aria-expanded="showAdvancedFilters" aria-controls="advanced-pricing-filters" @click="showAdvancedFilters = !showAdvancedFilters">
+        {{ showAdvancedFilters ? 'Hide advanced filters ▲' : 'Advanced filters ▼' }}
+      </button>
+
+    <Transition name="advanced-slide">
+      <div v-show="showAdvancedFilters" id="advanced-pricing-filters" class="advanced-filters-panel">
+
+        <div class="data-ex-form-cont">
+          <label class="form-label" style="color: white">Area</label>
+          <select class="form-select w-100 custom-form-select" v-model="regionGroup" @change="region = null">
+            <option :value="null">Any area</option>
+            <option v-for="g in options.regionGroups" :key="g" :value="g">{{ g }}</option>
+          </select>
+        </div>
+
+        <div class="data-ex-form-cont">
+          <label class="form-label" style="color: white">Region name</label>
+          <select class="form-select w-100 custom-form-select" v-model="regionName">
+            <option :value="null">Any region name</option>
+            <option v-for="r in regionNameOptions" :key="r" :value="r">{{ r }}</option>
+          </select>
+        </div>
+
+        <div class="data-ex-form-cont">
+          <label class="form-label" style="color: white">SKU meter</label>
+          <select class="form-select w-100 custom-form-select" v-model="skuMeter">
+            <option :value="null">Any meter</option>
+            <option v-for="m in (options.skuMeters ?? [])" :key="m" :value="m">{{ m }}</option>
+          </select>
+        </div>
+
+        <div class="data-ex-form-cont">
+          <label class="form-label" style="color: white">Pricing currency</label>
+          <select class="form-select w-100 custom-form-select" v-model="pricingCurrency">
+            <option :value="null">Any currency</option>
+            <option v-for="c in (options.pricingCurrencies ?? [])" :key="c" :value="c">{{ c }}</option>
+          </select>
+        </div>
+
+        <div class="data-ex-form-cont">
+          <label class="form-label" style="color: white">Operating System</label>
+          <select class="form-select w-100 custom-form-select" v-model="operatingSystem">
+            <option :value="null">Any</option>
+            <option v-for="os in options.operatingSystems" :key="os" :value="os">{{ os }}</option>
+          </select>
+        </div>
+
+        <div class="data-ex-form-cont">
+          <label class="form-label" style="color: white">DB engine</label>
+          <select class="form-select w-100 custom-form-select" v-model="dbEngine" :disabled="!engineOptions.length">
+            <option :value="null">Any engine</option>
+            <option v-for="e in engineOptions" :key="e" :value="e">{{ e }}</option>
+          </select>
+        </div>
+
+        <div class="data-ex-form-cont">
+          <label class="form-label" style="color: white">Pricing category</label>
+          <select class="form-select w-100 custom-form-select" v-model="pricingModel">
+            <option :value="null">Any pricing category</option>
+            <option v-for="m in options.pricingModels" :key="m" :value="m">{{ m }}</option>
+          </select>
+        </div>
+
+        <div class="data-ex-form-cont">
+          <label class="form-label" style="color: white">Price component</label>
+          <select class="form-select w-100 custom-form-select" v-model="priceComponent">
+            <option :value="null">Any component</option>
+            <option v-for="c in options.priceComponents" :key="c" :value="c">{{ c }}</option>
+          </select>
+        </div>
+
+        <div class="data-ex-form-cont">
+          <label class="form-label" style="color: white">Storage class</label>
+          <select class="form-select w-100 custom-form-select" v-model="storageClass">
+            <option :value="null">Any storage class</option>
+            <option v-for="s in options.storageClasses" :key="s" :value="s">{{ s }}</option>
+          </select>
+        </div>
+
+        <div class="data-ex-form-cont">
+          <label class="form-label" style="color: white">Service tier</label>
+          <select class="form-select w-100 custom-form-select" v-model="serviceTier">
+            <option :value="null">Any tier</option>
+            <option v-for="t in options.serviceTiers" :key="t" :value="t">{{ t }}</option>
+          </select>
+        </div>
+
+        <div class="data-ex-form-cont">
+          <label class="form-label" style="color: white">Commitment term</label>
+          <select class="form-select w-100 custom-form-select" v-model="commitmentTerm">
+            <option :value="null">Any term</option>
+            <option v-for="t in options.commitmentTerms" :key="t" :value="t">{{ t }}</option>
+          </select>
+        </div>
+
+        <div class="data-ex-form-cont">
+          <label class="form-label" style="color: white">Commitment type</label>
+          <select class="form-select w-100 custom-form-select" v-model="commitmentType">
+            <option :value="null">Any commitment</option>
+            <option v-for="t in options.commitmentTypes" :key="t" :value="t">{{ t }}</option>
+          </select>
+        </div>
+
+        <div class="data-ex-form-cont">
+          <label class="form-label" style="color: white">Tenancy</label>
+          <select class="form-select w-100 custom-form-select" v-model="tenancy">
+            <option :value="null">Any tenancy</option>
+            <option v-for="t in options.tenancies" :key="t" :value="t">{{ t }}</option>
+          </select>
+        </div>
+
+        <div class="data-ex-form-cont">
+          <label class="form-label" style="color: white">Deployment</label>
+          <select class="form-select w-100 custom-form-select" v-model="deploymentOption">
+            <option :value="null">Any deployment</option>
+            <option v-for="d in options.deploymentOptions" :key="d" :value="d">{{ d }}</option>
+          </select>
+        </div>
+
+        <div class="data-ex-form-cont">
+          <label class="form-label" style="color: white">Min vCPU</label>
+          <input type="number" min="0" class="form-control custom-form-select" v-model="minVcpu" placeholder="Any" />
+        </div>
+
+        <div class="data-ex-form-cont">
+          <label class="form-label" style="color: white">Min Memory (GiB)</label>
+          <input type="number" min="0" class="form-control custom-form-select" v-model="minMemory" placeholder="Any" />
+        </div>
+
+        <div class="data-ex-form-cont">
+          <label class="form-label" style="color: white">Max list unit price</label>
+          <input type="number" min="0" step="any" class="form-control custom-form-select" v-model="maxPrice" placeholder="Any" />
+        </div>
+
+        <div class="data-ex-form-cont form-check text-white">
+          <input id="known-specs" type="checkbox" class="form-check-input" v-model="onlyKnownSpecs" />
+          <label for="known-specs" class="form-check-label">Known vCPU + memory only</label>
+        </div>
+      </div>
+    </Transition>
   </div>
  
     <div class="text-center text-white-50 small mt-1">
@@ -424,11 +497,11 @@ watch(sourceName, resetFilters);
       <div class="tabs-wrapper">
         <ul class="nav nav-tabs" role="tablist">
           <li class="nav-item" role="presentation">
-            <button type="button" class="nav-link" :class="{ active: activeTab === 'chart' }" role="tab" :aria-selected="activeTab === 'chart'" @click="activeTab = 'chart'">Chart</button>
+            <button type="button" class="nav-link" :class="{ active: activeTab === 'table' }" role="tab" :aria-selected="activeTab === 'table'" @click="activeTab = 'table'">Table</button>
           </li>
 
           <li class="nav-item" role="presentation">
-            <button type="button" class="nav-link" :class="{ active: activeTab === 'table' }" role="tab" :aria-selected="activeTab === 'table'" @click="activeTab = 'table'">Table</button>
+            <button type="button" class="nav-link" :class="{ active: activeTab === 'chart' }" role="tab" :aria-selected="activeTab === 'chart'" @click="activeTab = 'chart'">Chart</button>
           </li>
         </ul>
 
@@ -459,7 +532,7 @@ watch(sourceName, resetFilters);
                 <span class="metrics-card-hint">Click a column header to sort</span>
               </div>
 
-              <div class="table-responsive metrics-table-container">
+              <div class="metrics-table-container">
                 <table class="metrics-table table table-hover align-middle">
                   <thead>
                     <tr>
@@ -470,18 +543,23 @@ watch(sourceName, resetFilters);
                   </thead>
 
                   <tbody>
-                    <tr v-for="(record, index) in pageRows" :key="`${record.ServiceProviderName}-${record.SkuId}-${record.RegionId}-${record.PricingUnit}-${index}`">
+                     <tr v-for="(record, index) in pageRows" :key="`${record.ServiceProviderName}-${record.SkuId}-${record.RegionId}-${record.PricingUnit}-${index}`">
                       <td class="nowrap"><span class="provider-dot" :style="{ backgroundColor: colorFor(record.ServiceProviderName) }"></span>{{ record.ServiceProviderName }}</td>
                       <td><span class="type-pill">{{ record.ServiceCategory ?? '–' }}</span></td>
+                      <td>{{ record.ServiceSubcategory ?? '–' }}</td>
                       <td>{{ record.ServiceName ?? '–' }}</td>
                       <td class="sku-cell" :title="record.SkuName || record.SkuId">{{ record.SkuName ?? '–' }}</td>
                       <td class="sku-cell">{{ record.SkuId }}</td>
+                      <td>{{ record.SkuPriceId ?? '–' }}</td>
+                      <td>{{ record.SkuMeter ?? '–' }}</td>
                       <td class="nowrap">{{ record.RegionId ?? '–' }}</td>
+                      <td>{{ record.RegionName ?? '–' }}</td>
                       <td>{{ record.OperatingSystem ?? '–' }}</td>
                       <td class="num">{{ record.VCpu ?? '–' }}</td>
                       <td class="num">{{ record.MemoryGiB ?? '–' }}</td>
-                      <td class="num price">{{ record.ListUnitPrice == null ? '–' : record.ListUnitPrice.toFixed(4) }}</td>
+                      <td class="num price">{{ record.ListUnitPrice == null ? '–' : record.ListUnitPrice.toLocaleString('en-US', { maximumFractionDigits: 10 }) }}</td>
                       <td>{{ record.PricingUnit ?? '–' }}</td>
+                      <td>{{ record.PricingCurrency ?? '–' }}</td>
                       <td><span class="pm-pill">{{ record.PricingCategory ?? '–' }}</span></td>
                       <td>{{ record.PriceComponent ?? '–' }}</td>
                     </tr>

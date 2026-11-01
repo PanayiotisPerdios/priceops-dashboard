@@ -1,741 +1,473 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
-import { policyPresets, DEFAULT_WEIGHTS } from '@/data/policyPresets';
+import { ref, computed, watch } from 'vue';
 import { usePricingData } from '@/composables/usePricingData';
-import { useScenarioScoring } from '@/composables/useScenarioScoring';
-import MetricChart from '@/components/MetricChart.vue';
- 
-import {
-  COMPARE_FIELDS, SCENARIO_CRITERIA, CHART_COLUMNS, providerFullNames, presetLabels,
-  SUBCATEGORY_LABELS, REGION_GROUP_LABELS, PRICING_MODEL_LABELS, DEFAULT_SUBCATEGORY, SKU_OPTION_LIMIT,
-} from '@/data/constants';
-import {
-  monthlyEstimate, annualEstimate, colorFor, valueFor, uniqSorted,
-  deltaFor as calcDeltaFor, winnerSideFor,
-} from '@/utils/calculationServices';
-import { exportCompareCSV, exportCompareJSON } from '@/utils/exportHelpers';
+import { evaluateScenario, evaluateAllProviders, PROVIDERS } from '@/utils/scenarioEvaluator';
 
-const { records, loading, error, options, sourceName } = usePricingData();
-
-const isScrolled = ref(false);
-
-function handleScroll() {
-  isScrolled.value = window.scrollY > 20;
-}
-
-onMounted( () => {
-  window.addEventListener('scroll', handleScroll);
-});
- 
-onUnmounted( () => {
-  window.removeEventListener('scroll', handleScroll);
-});
-
+const { records, loading, error, sourceName } = usePricingData();
+const compareMode = ref('provider');
 const activeTab = ref('chart');
+const providerA = ref('AWS');
+const providerB = ref('Azure');
 
-//Shared filters
-const compareMode = ref('sku');
+const usageFields = [
+  { key: 'hourlyUnits', label: 'Hourly units' },
+  { key: 'vcpu', label: 'Billed vCPU (optional override)' },
+  { key: 'memoryGB', label: 'Billed RAM (GB)' },
+  { key: 'gbHoursCapacity', label: 'Other GB-hour capacity' },
+  { key: 'storageGBMonths', label: 'Storage (GB-months)' },
+  { key: 'backupGBMonths', label: 'Backup (GB-months)' },
+  { key: 'gbMonths', label: 'Other GB-months' },
+  { key: 'transferGB', label: 'Transferred GB' },
+  { key: 'gb', label: 'Other GB' },
+  { key: 'billableDays', label: 'Billable days' },
+  { key: 'billableMonths', label: 'Billable months' },
+  { key: 'billableYears', label: 'Billable years' },
+  { key: 'acu', label: 'ACU' },
+  { key: 'iopsMonths', label: 'IOPS-months' },
+  { key: 'mbpsMonths', label: 'MBps-months' },
+  { key: 'tagMonths', label: 'Tag-months' },
+  { key: 'requests', label: 'Requests' }
+];
 
-const domain = ref(null);
-const subcategory = ref(DEFAULT_SUBCATEGORY);
-const regionGroup = ref(null);
-const operatingSystem = ref(null);
-const dbEngine = ref(null);
-const pricingModel = ref('on_demand');
-
-const inDomain = computed( () => {
-  return records.value.filter( (record) => {
-    return !domain.value || record.domain === domain.value;
-  });
-});
-
-const subcategoryOptions = computed( () => {
-  return uniqSorted(inDomain.value.map( (record) => {
-    return record.subcategory;
-  }));
-});
-
-const engineOptions = computed( () => {
-  return uniqSorted(inDomain.value.map( (record) => {
-    return record.db_engine;
-  }));
-});
-
-const filteredRecords = computed( () => {
-  const selectedDomain = domain.value;
-  const selectedSubcategory = subcategory.value;
-  const selectedRegionGroup = regionGroup.value;
-  const selectedOs = operatingSystem.value;
-  const selectedEngine = dbEngine.value;
-  const selectedPricingModel = pricingModel.value;
- 
-  return records.value.filter( (record) => {
-    if (selectedDomain && record.domain !== selectedDomain) {
-      return false;
-    }
-    if (selectedSubcategory && record.subcategory !== selectedSubcategory) {
-      return false;
-    }
- 
-    if (
-      selectedRegionGroup &&
-      record.region_group !== selectedRegionGroup &&
-      record.region_group !== 'global'
-    ) {
-      return false;
-    }
- 
-    if (selectedOs && record.operating_system !== selectedOs) {
-      return false;
-    }
-    if (selectedEngine && record.db_engine !== selectedEngine) {
-      return false;
-    }
-    if (selectedPricingModel && record.pricing_model !== selectedPricingModel) {
-      return false;
-    }
- 
-    return true;
-  });
-});
-
-//Provider mode
-const provider1 = ref(null);
-const provider2 = ref(null);
-const region1 = ref(null);
-const region2 = ref(null);
-const sku1 = ref(null);
-const sku2 = ref(null);
-
-function regionsFor(provider) {
-  const rowsForProvider = filteredRecords.value.filter( (record) => {
-    return record.provider === provider;
-  });
- 
-  return uniqSorted(rowsForProvider.map( (record) => {
-    return record.region;
-  }));
-}
-
-const regionOptions1 = computed( () => {
-  return regionsFor(provider1.value);
-});
-
-const regionOptions2 = computed( () => {
-  return regionsFor(provider2.value);
-});
-
-function findFilteredById(id) {
-  const found = filteredRecords.value.find( (record) => {
-    return record.id === id;
-  });
-  return found || null;
-}
- 
-const skuRecord1 = computed( () => {
-  return findFilteredById(sku1.value);
-});
- 
-const skuRecord2 = computed( () => {
-  return findFilteredById(sku2.value);
-});
-
-function matching(provider, region) {
-  if (!provider) {
-    return [];
-  }
- 
-  return filteredRecords.value.filter( (record) => {
-    const providerMatches = record.provider === provider;
-    const regionMatches = !region || record.region === region;
-    return providerMatches && regionMatches;
-  });
-}
-
-function limitedOptions(list, selected) {
-  const sorted = [...list].sort( (a, b) => {
-    const byName = a.skuName.localeCompare(b.skuName);
-    if (byName !== 0) {
-      return byName;
-    }
-    return a.effective_price_hr - b.effective_price_hr;
-  });
- 
-  const limited = sorted.slice(0, SKU_OPTION_LIMIT);
- 
-  if (selected && !limited.includes(selected)) {
-    limited.unshift(selected);
-  }
- 
-  return limited;
-}
-
-const skuMatches1 = computed( () => {
-  return matching(provider1.value, region1.value);
-});
- 
-const skuMatches2 = computed( () => {
-  return matching(provider2.value, region2.value);
-});
- 
-const skuOptions1 = computed( () => {
-  return limitedOptions(skuMatches1.value, skuRecord1.value);
-});
- 
-const skuOptions2 = computed( () => {
-  return limitedOptions(skuMatches2.value, skuRecord2.value);
-});
-
-function skuLabel(record) {
-  return `${record.skuName} · ${record.region} · ${record.effective_price_hr.toFixed(4)}/hr`;
-}
-//Scenario mode
-const presetNames = Object.keys(policyPresets);
-
-const scenarioPreset1 = ref(null);
-const scenarioPreset2 = ref(null);
-
-const weights1 = computed(() => {
-  const preset = policyPresets[scenarioPreset1.value];
-  if (preset === undefined || preset === null) {
-    return DEFAULT_WEIGHTS;
-  }
-  return preset;
-});
-
-const weights2 = computed(() => {
-  const preset = policyPresets[scenarioPreset2.value];
-  if (preset === undefined || preset === null) {
-    return DEFAULT_WEIGHTS;
-  }
-  return preset;
-});
-
-const scoringPool = computed( () => {
-  return filteredRecords.value.filter( (record) => {
-    return record.vcpu_count != null && record.memory_gb != null;
-  });
-});
-
-const { scored: scored1 } = useScenarioScoring(filteredRecords, SCENARIO_CRITERIA, weights1);
-const { scored: scored2 } = useScenarioScoring(filteredRecords, SCENARIO_CRITERIA, weights2);
-
-const scenarioRecord1 = computed( () => {
-  if (!scenarioPreset1.value) {
-    return null;
-  }
-  return scored1.value[0] ?? null;
-});
- 
-const scenarioRecord2 = computed( () => {
-  if (!scenarioPreset2.value) {
-    return null;
-  }
-  return scored2.value[0] ?? null;
-});
-
-//Unified record1/record2 across both modes
-const record1 = computed( () => {
-  if (compareMode.value === 'scenario') {
-    return scenarioRecord1.value;
-  }
-  return skuRecord1.value;
-});
- 
-const record2 = computed( () => {
-  if (compareMode.value === 'scenario') {
-    return scenarioRecord2.value;
-  }
-  return skuRecord2.value;
-});
-
-const noMatches = computed( () => {
-  if (compareMode.value === 'scenario') {
-    return scoringPool.value.length === 0;
-  }
- 
-  const sideAEmpty = !!provider1.value && skuMatches1.value.length === 0;
-  const sideBEmpty = !!provider2.value && skuMatches2.value.length === 0;
-  return sideAEmpty || sideBEmpty;
-});
-
-const sideLabels = computed( () => {
-  const a = record1.value;
-  const b = record2.value;
- 
-  if (!a || !b) {
-    return ['', ''];
-  }
- 
-  const sameProvider = a.provider === b.provider;
- 
-  const labelA = sameProvider ? `${a.provider} · ${a.region}` : a.provider;
-  const labelB = sameProvider ? `${b.provider} · ${b.region}` : b.provider;
-  return [labelA, labelB];
-});
- 
-function subcategoryLabel(record) {
-  return SUBCATEGORY_LABELS[record.subcategory] ?? record.subcategory;
-}
- 
-function pricingModelLabel(model) {
-  return PRICING_MODEL_LABELS[model] ?? model;
-}
-
-const comparabilityNotes = computed( () => {
-  const a = record1.value;
-  const b = record2.value;
- 
-  if (!a || !b) {
-    return [];
-  }
- 
-  const notes = [];
- 
-  if (a.resource_type !== b.resource_type) {
-    notes.push(
-      `Different resource types (${subcategoryLabel(a)} vs ${subcategoryLabel(b)}) - prices are not directly comparable.`
-    );
-  }
- 
-  if ((a.operating_system ?? null) !== (b.operating_system ?? null)) {
-    notes.push(
-      `Different OS / license (${a.operating_system ?? 'n/a'} vs ${b.operating_system ?? 'n/a'}).`
-    );
-  }
- 
-  if (a.pricing_model !== b.pricing_model) {
-    notes.push(
-      `Different pricing models (${pricingModelLabel(a.pricing_model)} vs ${pricingModelLabel(b.pricing_model)}).`
-    );
-  }
- 
-  if ((a.db_engine ?? null) !== (b.db_engine ?? null)) {
-    notes.push(
-      `Different database engines (${a.db_engine ?? 'n/a'} vs ${b.db_engine ?? 'n/a'}).`
-    );
-  }
- 
-  if (a.deployment && b.deployment && a.deployment !== b.deployment) {
-    notes.push('Different deployment options (single vs multi-AZ).');
-  }
- 
-  if (a.specs_inferred || b.specs_inferred) {
-    notes.push('Some specs are estimated, not published by the provider.');
-  }
- 
-  return notes;
-});
-
-function toChartRecord(record) {
+function newComponent() {
   return {
-    id: record.id,
-    name: record.skuName,
-    subtitle: `${record.provider} · ${record.region}`,
-    color: colorFor(record.provider),
-    vcpu_count: record.vcpu_count,
-    memory_gb: record.memory_gb,
-    effective_price_hr: record.effective_price_hr,
-    price_per_vcpu_hr: record.price_per_vcpu_hr,
-    data_quality_score: record.data_quality_score,
+    ServiceCategory: 'Compute',
+    ServiceSubcategory: '',
+    ServiceName: '',
+    PriceComponent: 'Instance',
+    PricingUnit: '',
+    quantity: 1,
+    minVCpu: 4,
+    minMemoryGiB: 16,
+    requiresOS: true,
+    usage: {}
   };
 }
 
-const chartRecords = computed( () => {
-  const chosen = [record1.value, record2.value].filter(Boolean);
-  return chosen.map(toChartRecord);
-});
+function newScenario(name) {
+  return {
+    name,
+    regionGroup: 'Europe',
+    operatingSystem: 'Linux',
+    pricingCategory: 'Standard',
+    hoursPerMonth: 730,
+    policy: 'costFirst',
+    components: [newComponent()]
+  };
+}
 
-const cards = computed( () => {
-  const allCards = [
-    { key: 'A', rec: record1.value, preset: scenarioPreset1.value },
-    { key: 'B', rec: record2.value, preset: scenarioPreset2.value },
-  ];
- 
-  return allCards.filter( (card) => {
-    return card.rec;
-  });
-});
+const scenarioA = ref(newScenario('Scenario A'));
+const scenarioB = ref(newScenario('Scenario B'));
 
-const filtersUnlocked = computed( () => {
-  if (compareMode.value === 'scenario') {
+function distinct(values) {
+  return [...new Set(values.filter(value => value != null && value !== ''))].sort();
+}
+
+const providerOptions = computed(() => {
+  const found = distinct(records.value.map(row => row.ServiceProviderName));
+  return PROVIDERS.filter(provider => found.includes(provider));
+});
+const regionOptions = computed(() => distinct(records.value.map(row => row.RegionGroup)));
+const pricingOptions = computed(() => distinct(records.value.map(row => row.PricingCategory)));
+const osOptions = computed(() => distinct(records.value.map(row => row.OperatingSystem)));
+const categoryOptions = computed(() => distinct(records.value.map(row => row.ServiceCategory)));
+const componentOptions = computed(() => distinct(records.value.map(row => row.PriceComponent)));
+const unitOptions = computed(() => distinct(records.value.map(row => row.PricingUnit)));
+
+function rowsForComponent(component) {
+  return records.value.filter(row => {
+    if (component.ServiceCategory && row.ServiceCategory !== component.ServiceCategory) return false;
+    if (component.PriceComponent && row.PriceComponent !== component.PriceComponent) return false;
     return true;
+  });
+}
+
+function subcategoryOptions(component) {
+  return distinct(rowsForComponent(component).map(row => row.ServiceSubcategory));
+}
+
+function serviceOptions(component) {
+  return distinct(rowsForComponent(component)
+    .filter(row => !component.ServiceSubcategory || row.ServiceSubcategory === component.ServiceSubcategory)
+    .map(row => row.ServiceName));
+}
+
+function addComponent(scenario) {
+  scenario.components.push(newComponent());
+}
+
+function removeComponent(scenario, index) {
+  if (scenario.components.length > 1) scenario.components.splice(index, 1);
+}
+
+function resetComponentFilters(component) {
+  component.ServiceSubcategory = '';
+  component.ServiceName = '';
+}
+
+function numericOrEmpty(value) {
+  if (value === '' || value === null || value === undefined) return undefined;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : NaN;
+}
+
+function setUsage(component, key, value) {
+  const number = numericOrEmpty(value);
+  if (number === undefined) delete component.usage[key];
+  else component.usage[key] = number;
+}
+
+function getUsage(component, key) {
+  return component.usage[key] ?? '';
+}
+
+// Convert optional empty filter values to absent properties before evaluation.
+function preparedScenario(scenario) {
+  const result = {
+    name: scenario.name,
+    regionGroup: scenario.regionGroup || null,
+    operatingSystem: scenario.operatingSystem || null,
+    pricingCategory: scenario.pricingCategory || null,
+    hoursPerMonth: scenario.hoursPerMonth,
+    policy: 'costFirst',
+    components: []
+  };
+
+  for (const component of scenario.components) {
+    const prepared = {
+      ServiceCategory: component.ServiceCategory,
+      PriceComponent: component.PriceComponent,
+      quantity: component.quantity,
+      requiresOS: component.requiresOS,
+      usage: { ...component.usage }
+    };
+    if (component.ServiceSubcategory) prepared.ServiceSubcategory = component.ServiceSubcategory;
+    if (component.ServiceName) prepared.ServiceName = component.ServiceName;
+    if (component.PricingUnit) prepared.PricingUnit = component.PricingUnit;
+    if (component.minVCpu !== '' && component.minVCpu != null) prepared.minVCpu = component.minVCpu;
+    if (component.minMemoryGiB !== '' && component.minMemoryGiB != null) prepared.minMemoryGiB = component.minMemoryGiB;
+    result.components.push(prepared);
   }
-  return !!provider1.value && !!provider2.value;
+  return result;
+}
+
+const providerResultA = computed(() => evaluateScenario(records.value, preparedScenario(scenarioA.value), providerA.value));
+const providerResultB = computed(() => evaluateScenario(records.value, preparedScenario(scenarioA.value), providerB.value));
+const scenarioResultsA = computed(() => evaluateAllProviders(records.value, preparedScenario(scenarioA.value)));
+const scenarioResultsB = computed(() => evaluateAllProviders(records.value, preparedScenario(scenarioB.value)));
+
+const currentRows = computed(() => {
+  if (compareMode.value === 'provider') {
+    return [
+      { label: providerA.value, result: providerResultA.value },
+      { label: providerB.value, result: providerResultB.value }
+    ];
+  }
+  const rows = [];
+  for (const provider of PROVIDERS) {
+    rows.push({
+      label: provider,
+      resultA: scenarioResultsA.value.find(result => result.provider === provider),
+      resultB: scenarioResultsB.value.find(result => result.provider === provider)
+    });
+  }
+  return rows;
 });
 
-//Resets
-function resetSelection() {
-  sku1.value = null;
-  sku2.value = null;
+function money(value) {
+  if (value == null || !Number.isFinite(value)) return 'N/A';
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(value);
 }
 
-function onDomainChange() {
-  dbEngine.value = null;
- 
-  if (subcategoryOptions.value.includes(DEFAULT_SUBCATEGORY)) {
-    subcategory.value = DEFAULT_SUBCATEGORY;
-  } else {
-    subcategory.value = null;
-  }
- 
-  resetSelection();
+function difference(a, b) {
+  if (a == null || b == null) return null;
+  return b - a;
 }
 
-function resetFilters() {
-  provider1.value = null;
-  provider2.value = null;
-  scenarioPreset1.value = null;
-  scenarioPreset2.value = null;
-
-  domain.value = null;
-  subcategory.value = DEFAULT_SUBCATEGORY;
-  regionGroup.value = null;
-  operatingSystem.value = null;
-  dbEngine.value = null;
-  pricingModel.value = 'on_demand';
-  
-  resetSelection();
+function downloadFile(filename, content, type) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
-function deltaFor(field) {
-  return calcDeltaFor(record1.value, record2.value, field);
-}
-
-function winnerSide(field) {
-  return winnerSideFor(record1.value, record2.value, field);
-}
-
-//Export
-function exportCSV() {
-  exportCompareCSV(record1.value, record2.value, COMPARE_FIELDS);
-}
 function exportJSON() {
-  exportCompareJSON(record1.value, record2.value, COMPARE_FIELDS);
+  const payload = {
+    mode: compareMode.value,
+    scenarioA: preparedScenario(scenarioA.value),
+    scenarioB: compareMode.value === 'scenario' ? preparedScenario(scenarioB.value) : null,
+    results: currentRows.value
+  };
+  downloadFile('comparison.json', JSON.stringify(payload, null, 2), 'application/json');
 }
 
-watch(sourceName, () => resetFilters());
+function csvCell(value) {
+  return `"${String(value ?? '').replaceAll('"', '""')}"`;
+}
+
+function exportCSV() {
+  const lines = [['Mode', 'Provider', 'Scenario', 'Complete', 'MonthlyCostUSD', 'Issues']];
+  if (compareMode.value === 'provider') {
+    for (const item of currentRows.value) {
+      const r = item.result;
+      lines.push(['Provider', item.label, r.scenarioName, r.complete, r.totalMonthlyCost, r.issues.join('; ')]);
+    }
+  } else {
+    for (const item of currentRows.value) {
+      for (const r of [item.resultA, item.resultB]) {
+        lines.push(['Scenario', item.label, r.scenarioName, r.complete, r.totalMonthlyCost, r.issues.join('; ')]);
+      }
+    }
+  }
+  downloadFile('comparison.csv', lines.map(line => line.map(csvCell).join(',')).join('\n'), 'text/csv');
+}
+
+watch(sourceName, () => {
+  scenarioA.value = newScenario('Scenario A');
+  scenarioB.value = newScenario('Scenario B');
+});
 
 </script>
 
 <template>
-<div class="page">
+  <div class="page comparison-page">
+    <div class="btn-group mb-3">
+      <button type="button" class="btn btn-outline-light" :class="{ active: compareMode === 'provider' }" @click="compareMode = 'provider'">Provider</button>
+      <button type="button" class="btn btn-outline-light" :class="{ active: compareMode === 'scenario' }" @click="compareMode = 'scenario'">Scenario</button>
+    </div>
 
-  <div class="btn-group">
-    <button type="button" class="btn btn-outline-light" :class="{ active: compareMode === 'sku' }"
-      @click="compareMode = 'sku'; resetFilters()">
-      Provider
-    </button>
-    <button type="button" class="btn btn-outline-light" :class="{ active: compareMode === 'scenario' }"
-      @click="compareMode = 'scenario'; resetFilters()">
-      Scenario
-    </button>
-  </div>
-
-  <div v-if="loading" class="text-white-50 mt-3">Loading pricing data…</div>
-  <div v-else-if="error" class="text-danger mt-3">Could not load the pricing data: {{ error.message }}</div>
-
-  <template v-else>
-
-    <div class="top-filter-bar d-flex flex-column align-items-center gap-3 py-2" :class="{ scrolled: isScrolled }">
-
-      <div class="d-flex justify-content-center align-items-end gap-3 flex-wrap">
-
-        <template v-if="compareMode === 'sku'">
-
-          <div class="comparison-select-group">
-            <div class="data-ex-form-cont">
-              <label class="form-label" style="color: white">Provider A</label>
-              <select class="form-select w-100 custom-form-select" v-model="provider1" @change="region1 = null; sku1 = null">
-                <option :value="null" disabled>Select provider</option>
-                <option v-for="p in options.providers" :key="p" :value="p">{{ p }}</option>
-              </select>
-            </div>
-
-            <div class="data-ex-form-cont">
-              <label class="form-label" style="color: white">Region A</label>
-              <select class="form-select custom-form-select" v-model="region1" :disabled="!provider1" @change="sku1 = null">
-                <option :value="null">Any region</option>
-                <option v-for="r in regionOptions1" :key="r" :value="r">{{ r }}</option>
-              </select>
-            </div>
-
-            <div class="data-ex-form-cont sku-field">
-              <label class="form-label" style="color: white">SKU A</label>
-              <select class="form-select custom-form-select" v-model="sku1" :disabled="!provider1">
-                <option :value="null" disabled>Select a SKU</option>
-                <option v-for="r in skuOptions1" :key="r.id" :value="r.id" :disabled="r.id === sku2">
-                  {{ skuLabel(r) }}
-                </option>
-              </select>
-              <small v-if="skuMatches1.length > SKU_OPTION_LIMIT" class="text-white-50">
-                First {{ SKU_OPTION_LIMIT }} of {{ skuMatches1.length }} - narrow with region / filters
-              </small>
-            </div>
-          </div>
-
-          <div class="comparison-select-group">
-            <div class="data-ex-form-cont">
-              <label class="form-label" style="color: white">Provider B</label>
-              <select class="form-select custom-form-select" v-model="provider2" @change="region2 = null; sku2 = null">
-                <option :value="null" disabled>Select provider</option>
-                <option v-for="p in options.providers" :key="p" :value="p">{{ p }}</option>
-              </select>
-            </div>
-
-            <div class="data-ex-form-cont">
-              <label class="form-label" style="color: white">Region B</label>
-              <select class="form-select custom-form-select" v-model="region2" :disabled="!provider2" @change="sku2 = null">
-                <option :value="null">Any region</option>
-                <option v-for="r in regionOptions2" :key="r" :value="r">{{ r }}</option>
-              </select>
-            </div>
-
-            <div class="data-ex-form-cont sku-field">
-              <label class="form-label" style="color: white">SKU B</label>
-              <select class="form-select custom-form-select" v-model="sku2" :disabled="!provider2">
-                <option :value="null" disabled>Select a SKU</option>
-                <option v-for="r in skuOptions2" :key="r.id" :value="r.id" :disabled="r.id === sku1">
-                  {{ skuLabel(r) }}
-                </option>
-              </select>
-              <small v-if="skuMatches2.length > SKU_OPTION_LIMIT" class="text-white-50">
-                First {{ SKU_OPTION_LIMIT }} of {{ skuMatches2.length }} - narrow with region / filters
-              </small>
-            </div>
-          </div>
-
-        </template>
-
-        <template v-else>
-
-          <div class="comparison-select-group">
-            <div class="data-ex-form-cont">
-              <label class="form-label" style="color: white">Scenario A</label>
-              <select class="form-select w-100 custom-form-select" v-model="scenarioPreset1">
-                <option v-if="!scenarioPreset1" :value="null" disabled selected hidden>Choose preset</option>
-                <option v-for="name in presetNames" :key="name" :value="name" :disabled="name === scenarioPreset2">
-                  {{ presetLabels[name] ?? name }}
-                </option>
-              </select>
-            </div>
-          </div>
-
-          <div class="comparison-select-group">
-            <div class="data-ex-form-cont">
-              <label class="form-label" style="color: white">Scenario B</label>
-              <select class="form-select w-100 custom-form-select" v-model="scenarioPreset2">
-                <option v-if="!scenarioPreset2" :value="null" disabled selected hidden>Choose preset</option>
-                <option v-for="name in presetNames" :key="name" :value="name" :disabled="name === scenarioPreset1">
-                  {{ presetLabels[name] ?? name }}
-                </option>
-              </select>
-            </div>
-          </div>
-
-        </template>
-
+    <div v-if="loading" class="text-white-50">Loading pricing data…</div>
+    <div v-else-if="error" class="text-danger">Could not load pricing data: {{ error.message }}</div>
+    <template v-else>
+      <div v-if="compareMode === 'provider'" class="comparison-select-group mb-3 flex-wrap">
+        <div class="data-ex-form-cont">
+          <label class="form-label text-white">Provider A</label>
+          <select v-model="providerA" class="form-select custom-form-select">
+            <option v-for="provider in providerOptions" :key="provider" :value="provider">{{ provider }}</option>
+          </select>
+        </div>
+        <div class="data-ex-form-cont">
+          <label class="form-label text-white">Provider B</label>
+          <select v-model="providerB" class="form-select custom-form-select">
+            <option v-for="provider in providerOptions" :key="provider" :value="provider">{{ provider }}</option>
+          </select>
+        </div>
+        <span v-if="providerA === providerB" class="text-warning small align-self-center">Choose different providers.</span>
       </div>
 
-      <fieldset class="d-flex justify-content-center align-items-end gap-3 flex-wrap filters-row"
-        :class="{ 'filters-disabled': !filtersUnlocked }" :disabled="!filtersUnlocked">
+      <p class="text-white-50 small">Costs are calculated from your imported pricing records. Policy: Cost First (cheapest eligible priceable record per workload component).</p>
 
-        <div class="data-ex-form-cont">
-          <label class="form-label" style="color: white">Domain</label>
-          <select class="form-select custom-form-select" v-model="domain" @change="onDomainChange">
-            <option :value="null">Any domain</option>
-            <option v-for="d in options.domains" :key="d" :value="d">{{ d }}</option>
-          </select>
-        </div>
+      <div class="scenario-editors">
+        <section v-for="(scenario, scenarioIndex) in (compareMode === 'provider' ? [scenarioA] : [scenarioA, scenarioB])"
+          :key="scenarioIndex" class="comparison-table-container scenario-editor">
+          <h4 class="text-white mb-3">{{ compareMode === 'provider' ? 'Shared workload' : `Scenario ${scenarioIndex === 0 ? 'A' : 'B'}` }}</h4>
 
-        <div class="data-ex-form-cont">
-          <label class="form-label" style="color: white">Resource type</label>
-          <select class="form-select custom-form-select" v-model="subcategory" @change="resetSelection">
-            <option :value="null">Any type</option>
-            <option v-for="s in subcategoryOptions" :key="s" :value="s">{{ SUBCATEGORY_LABELS[s] ?? s }}</option>
-          </select>
-        </div>
-
-        <div class="data-ex-form-cont">
-          <label class="form-label" style="color: white">Area</label>
-          <select class="form-select w-100 custom-form-select" v-model="regionGroup" @change="resetSelection">
-            <option :value="null">Any area</option>
-            <option v-for="g in options.regionGroups" :key="g" :value="g">{{ REGION_GROUP_LABELS[g] ?? g }}</option>
-          </select>
-        </div>
-
-        <div class="data-ex-form-cont">
-          <label class="form-label" style="color: white">Operating System</label>
-          <select class="form-select w-100 custom-form-select" v-model="operatingSystem" @change="resetSelection">
-            <option :value="null">Any</option>
-            <option v-for="os in options.operatingSystems" :key="os" :value="os">{{ os }}</option>
-          </select>
-        </div>
-
-        <div class="data-ex-form-cont">
-          <label class="form-label" style="color: white">DB engine</label>
-          <select class="form-select w-100 custom-form-select" v-model="dbEngine" :disabled="!engineOptions.length" @change="resetSelection">
-            <option :value="null">Any engine</option>
-            <option v-for="e in engineOptions" :key="e" :value="e">{{ e }}</option>
-          </select>
-        </div>
-
-        <div class="data-ex-form-cont">
-          <label class="form-label" style="color: white">Pricing model</label>
-          <select class="form-select w-100 custom-form-select" v-model="pricingModel" @change="resetSelection">
-            <option :value="null">Any</option>
-            <option v-for="m in options.pricingModels" :key="m" :value="m">{{ PRICING_MODEL_LABELS[m] ?? m }}</option>
-          </select>
-        </div>
-
-        <div class="data-ex-form-cont">
-          <button type="button" class="btn btn-outline-light" @click="resetFilters">Reset</button>
-        </div>
-
-        <div>
-          <label class="form-label" style="color: white">Export</label>
-          <div class="data-ex-form-cont d-flex gap-3">
-            <button type="button" class="btn btn-outline-primary" :disabled="!record1 || !record2" @click="exportCSV">CSV</button>
-            <button type="button" class="btn btn-outline-primary" :disabled="!record1 || !record2" @click="exportJSON">JSON</button>
-          </div>
-        </div>
-
-      </fieldset>
-
-    </div>
-
-    <div class="text-center text-white-50 small mt-1">
-      {{ filteredRecords.length.toLocaleString() }} records match the current filters
-    </div>
-    <div v-if="noMatches" class="text-center text-white-50 small mt-1">No records match the current filters</div>
-
-    <div v-if="record1 && record2" class="comparison-results">
-      <div v-if="comparabilityNotes.length" class="text-warning small mt-2">
-        <div v-for="note in comparabilityNotes" :key="note">⚠ {{ note }}</div>
-      </div>
-    </div>
-
-    <div v-if="record1 || record2" class="comparison-container">
-      <div class="tabs-wrapper">
-
-        <ul class="nav nav-tabs" role="tablist">
-          <li class="nav-item" role="presentation">
-            <button type="button" class="nav-link" :class="{ active: activeTab === 'chart' }"
-              role="tab" :aria-selected="activeTab === 'chart'" @click="activeTab = 'chart'">
-              Chart
-            </button>
-          </li>
-          <li class="nav-item" role="presentation">
-            <button type="button" class="nav-link" :class="{ active: activeTab === 'details' }"
-              role="tab" :aria-selected="activeTab === 'details'" @click="activeTab = 'details'">
-              Details
-            </button>
-          </li>
-        </ul>
-
-        <div class="tab-content">
-
-          <!-- CHART TAB -->
-          <div v-if="activeTab === 'chart'" class="tab-pane fade show active" role="tabpanel">
-            <div class="chart-host mb-3">
-              <MetricChart :records="chartRecords" :columns="CHART_COLUMNS" />
+          <div class="scenario-form-grid">
+            <div>
+              <label class="form-label">Name</label>
+              <input v-model="scenario.name" class="form-control" type="text" />
+            </div>
+            <div>
+              <label class="form-label">Hours per month</label>
+              <input v-model.number="scenario.hoursPerMonth" class="form-control" type="number" min="0" max="744" step="1" />
+            </div>
+            <div>
+              <label class="form-label">Region group</label>
+              <select v-model="scenario.regionGroup" class="form-select custom-form-select">
+                <option value="">Any</option>
+                <option v-for="region in regionOptions" :key="region" :value="region">{{ region }}</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label">Pricing category</label>
+              <select v-model="scenario.pricingCategory" class="form-select custom-form-select">
+                <option value="">Any</option>
+                <option v-for="category in pricingOptions" :key="category" :value="category">{{ category }}</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label">Operating system</label>
+              <select v-model="scenario.operatingSystem" class="form-select custom-form-select">
+                <option value="">Any</option>
+                <option v-for="os in osOptions" :key="os" :value="os">{{ os }}</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label">Policy</label>
+              <input class="form-control" value="Cost First" disabled />
             </div>
           </div>
 
-          <!-- DETAILS TAB (cards + table) -->
-          <div v-else class="tab-pane fade show active comparison-results" role="tabpanel">
-            <div v-if="!(record1 && record2)" class="tab-empty">
-              Select both sides to see the cards and comparison table.
+          <div v-for="(component, index) in scenario.components" :key="index" class="scenario-component mt-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <strong class="text-white">Component {{ index + 1 }}</strong>
+              <button type="button" class="btn btn-sm btn-outline-danger" :disabled="scenario.components.length === 1" @click="removeComponent(scenario, index)">Remove</button>
             </div>
-
-            <template v-else>
-              <div class="comparison-kpi-container">
-
-                <div v-for="card in cards" :key="card.key" class="pricing-card mt-3">
-
-                  <div class="pricing-card-header">
-                    <h3 class="pricing-card-title">{{ card.rec.instance_type || card.rec.skuName }}</h3>
-                    <span class="pricing-badge" :class="card.rec.specs_complete ? 'pricing-badge-confirmed' : 'pricing-badge-inferred'">
-                      {{ card.rec.specs_complete ? 'CONFIRMED' : 'INFERRED' }}
-                    </span>
-                  </div>
-
-                  <div class="pricing-card-subtitle">
-                    {{ providerFullNames[card.rec.provider] ?? card.rec.provider }} · {{ card.rec.provider }} - {{ card.rec.product_family ?? 'Unknown' }}
-                  </div>
-
-                  <div v-if="compareMode === 'scenario'" class="pricing-card-subtitle text-white-50 small">
-                    Top pick under "{{ presetLabels[card.preset] ?? card.preset }}" — score {{ (card.rec.score * 100).toFixed(1) }}%
-                  </div>
-
-                  <div class="pricing-card-specs">
-                    {{ card.rec.vcpu_count ?? '–' }} vCPU · {{ card.rec.memory_gb ?? '–' }} GB RAM
-                  </div>
-
-                  <div class="pricing-card-price">{{ card.rec.effective_price_hr.toFixed(4) }}</div>
-                  <div class="pricing-card-price-unit">{{ card.rec.currencyCode }} · per hour</div>
-
-                  <div class="pricing-card-estimates">
-                    <div>Est. monthly: {{ card.rec.currencyCode }} {{ monthlyEstimate(card.rec)?.toFixed(2) }}</div>
-                    <div>Est. annual: {{ card.rec.currencyCode }} {{ annualEstimate(card.rec)?.toFixed(2) }}</div>
-                    <div v-if="card.rec.price_per_vcpu_hr != null">Per vCPU-hr: {{ card.rec.currencyCode }} {{ card.rec.price_per_vcpu_hr.toFixed(4) }}</div>
-                  </div>
-
-                  <div class="pricing-card-meta">
-                    <div>
-                      <span class="pricing-card-meta-label">Region</span>{{ card.rec.provider }} - {{ card.rec.region }}<template v-if="card.rec.region_name"> ({{ card.rec.region_name }})</template>
-                    </div>
-                    <div><span class="pricing-card-meta-label">Area</span>{{ REGION_GROUP_LABELS[card.rec.region_group] ?? card.rec.region_group ?? 'Unknown' }}</div>
-                    <div><span class="pricing-card-meta-label">Type</span>{{ SUBCATEGORY_LABELS[card.rec.subcategory] ?? card.rec.subcategory }}</div>
-                    <div><span class="pricing-card-meta-label">Pricing</span>{{ PRICING_MODEL_LABELS[card.rec.pricing_model] ?? card.rec.pricing_model }}</div>
-                    <div v-if="card.rec.operating_system"><span class="pricing-card-meta-label">OS</span>{{ card.rec.operating_system }}</div>
-                    <div v-if="card.rec.db_engine"><span class="pricing-card-meta-label">Engine</span>{{ card.rec.db_engine }}</div>
-                    <div v-if="card.rec.deployment"><span class="pricing-card-meta-label">Deployment</span>{{ card.rec.deployment === 'multi_az' ? 'Multi-AZ' : 'Single-AZ' }}</div>
-                    <div v-if="card.rec.tenancy"><span class="pricing-card-meta-label">Tenancy</span>{{ card.rec.tenancy }}</div>
-                  </div>
-
-                </div>
-
+            <div class="scenario-form-grid">
+              <div>
+                <label class="form-label">Service category</label>
+                <select v-model="component.ServiceCategory" class="form-select custom-form-select" @change="resetComponentFilters(component)">
+                  <option v-for="category in categoryOptions" :key="category" :value="category">{{ category }}</option>
+                </select>
               </div>
+              <div>
+                <label class="form-label">Price component</label>
+                <select v-model="component.PriceComponent" class="form-select custom-form-select" @change="resetComponentFilters(component)">
+                  <option v-for="item in componentOptions" :key="item" :value="item">{{ item }}</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label">Subcategory</label>
+                <select v-model="component.ServiceSubcategory" class="form-select custom-form-select" @change="component.ServiceName = ''">
+                  <option value="">Any</option>
+                  <option v-for="item in subcategoryOptions(component)" :key="item" :value="item">{{ item }}</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label">Service</label>
+                <select v-model="component.ServiceName" class="form-select custom-form-select">
+                  <option value="">Any</option>
+                  <option v-for="item in serviceOptions(component)" :key="item" :value="item">{{ item }}</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label">Pricing unit</label>
+                <select v-model="component.PricingUnit" class="form-select custom-form-select">
+                  <option value="">Any supported unit</option>
+                  <option v-for="item in unitOptions" :key="item" :value="item">{{ item }}</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label">Quantity</label>
+                <input v-model.number="component.quantity" class="form-control" type="number" min="1" step="1" />
+              </div>
+              <div>
+                <label class="form-label">Min vCPU (optional)</label>
+                <input v-model.number="component.minVCpu" class="form-control" type="number" min="0" step="1" />
+              </div>
+              <div>
+                <label class="form-label">Min RAM GiB (optional)</label>
+                <input v-model.number="component.minMemoryGiB" class="form-control" type="number" min="0" step="1" />
+              </div>
+              <label class="scenario-checkbox"><input v-model="component.requiresOS" type="checkbox" /> Require matching OS</label>
+            </div>
+            <details class="mt-3">
+              <summary class="text-white">Usage quantities (for GB, requests, CPU, storage, etc.)</summary>
+              <div class="scenario-form-grid mt-2">
+                <div v-for="field in usageFields" :key="field.key">
+                  <label class="form-label">{{ field.label }}</label>
+                  <input :value="getUsage(component, field.key)" type="number" min="0" step="any" class="form-control"
+                    @input="setUsage(component, field.key, $event.target.value)" />
+                </div>
+              </div>
+              <p class="text-white-50 small mt-2 mb-0">Leave unused quantities empty. For example, GB-Month storage needs storageGBMonths; GB-Hour RAM needs memoryGB. Annual billing may use billableYears = 1/12 for a monthly equivalent.</p>
+            </details>
+          </div>
+          <button type="button" class="btn btn-outline-primary mt-3" @click="addComponent(scenario)">+ Add component</button>
+        </section>
+      </div>
 
-              <div class="table-responsive comparison-table-container mt-4">
-                <table class="comparison-table table">
-                  <thead>
-                    <tr>
-                      <th>Metric</th>
-                      <th>{{ sideLabels[0] }}</th>
-                      <th>{{ sideLabels[1] }}</th>
-                      <th>Delta</th>
-                      <th>Winner</th>
-                    </tr>
-                  </thead>
+      <div class="d-flex gap-2 justify-content-end my-3">
+        <button class="btn btn-outline-primary" type="button" @click="exportCSV">Export CSV</button>
+        <button class="btn btn-outline-primary" type="button" @click="exportJSON">Export JSON</button>
+      </div>
+
+      <div v-if="compareMode === 'provider' && providerA === providerB" class="text-warning text-center">Select two different providers to compare.</div>
+      <div v-else class="comparison-container">
+        <div class="tabs-wrapper">
+          <ul class="nav nav-tabs">
+            <li class="nav-item"><button class="nav-link" :class="{ active: activeTab === 'chart' }" @click="activeTab = 'chart'">Chart</button></li>
+            <li class="nav-item"><button class="nav-link" :class="{ active: activeTab === 'details' }" @click="activeTab = 'details'">Details</button></li>
+          </ul>
+
+          <div v-if="activeTab === 'chart'" class="comparison-table-container">
+            <h5 class="text-white">Monthly cost comparison (USD)</h5>
+            <template v-if="compareMode === 'provider'">
+              <div v-for="item in currentRows" :key="item.label" class="comparison-bar-row">
+                <div class="d-flex justify-content-between"><strong>{{ item.label }}</strong><span>{{ money(item.result.totalMonthlyCost) }}</span></div>
+                <div class="comparison-bar-track"><div class="comparison-bar-fill" :style="{ width: item.result.complete ? `${100 * item.result.totalMonthlyCost / Math.max(1, ...currentRows.map(r => r.result.totalMonthlyCost ?? 0))}%` : '0%' }"></div></div>
+              </div>
+            </template>
+            <template v-else>
+              <div v-for="item in currentRows" :key="item.label" class="mb-3">
+                <strong>{{ item.label }}</strong>
+                <div v-for="(result, index) in [item.resultA, item.resultB]" :key="index" class="comparison-bar-row">
+                  <div class="d-flex justify-content-between"><span>Scenario {{ index === 0 ? 'A' : 'B' }}</span><span>{{ money(result.totalMonthlyCost) }}</span></div>
+                  <div class="comparison-bar-track"><div class="comparison-bar-fill" :style="{ width: result.complete ? `${100 * result.totalMonthlyCost / Math.max(1, ...currentRows.flatMap(r => [r.resultA.totalMonthlyCost ?? 0, r.resultB.totalMonthlyCost ?? 0]))}%` : '0%' }"></div></div>
+                </div>
+              </div>
+            </template>
+            <p class="text-white-50 small mb-0">Bars show total calculated monthly charges for complete results only. Missing costs are not treated as zero.</p>
+          </div>
+
+          <div v-else class="comparison-table-container">
+            <template v-if="compareMode === 'provider'">
+              <div class="table-responsive">
+                <table class="table comparison-table">
+                  <thead><tr><th>Metric</th><th>{{ providerA }}</th><th>{{ providerB }}</th></tr></thead>
                   <tbody>
-                    <tr v-for="field in COMPARE_FIELDS" :key="field.id">
-                      <td>{{ field.name }}</td>
-                      <td>{{ valueFor(record1, field) ?? 'N/A' }}</td>
-                      <td>{{ valueFor(record2, field) ?? 'N/A' }}</td>
-                      <td v-if="deltaFor(field) !== null && deltaFor(field) !== undefined" :class="Number(deltaFor(field)) < 0 ? 'negative-delta' : 'positive-delta'">{{ deltaFor(field) }}%</td>
-                      <td v-else>N/A</td>
-                      <td>
-                        <span v-if="winnerSide(field) !== null" class="winner-badge" :class="winnerSide(field) === 0 ? 'positive-badge' : 'negative-badge'">
-                          {{ sideLabels[winnerSide(field)] }}
-                        </span>
-                        <span v-else>N/A</span>
-                      </td>
+                    <tr><th>Complete</th><td>{{ providerResultA.complete ? 'Yes' : 'No' }}</td><td>{{ providerResultB.complete ? 'Yes' : 'No' }}</td></tr>
+                    <tr><th>Total monthly cost</th><td>{{ money(providerResultA.totalMonthlyCost) }}</td><td>{{ money(providerResultB.totalMonthlyCost) }}</td></tr>
+                    <tr><th>Difference (B − A)</th><td colspan="2">{{ money(difference(providerResultA.totalMonthlyCost, providerResultB.totalMonthlyCost)) }}</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="comparison-kpi-container">
+                <div v-for="item in currentRows" :key="item.label" class="pricing-card">
+                  <h5 class="pricing-card-title">{{ item.label }}</h5>
+                  <div class="pricing-card-price">{{ money(item.result.totalMonthlyCost) }}</div>
+                  <div class="pricing-card-price-unit">per month</div>
+                  <p v-for="issue in item.result.issues" :key="issue" class="text-warning small mt-2">{{ issue }}</p>
+                  <div v-for="component in item.result.components" :key="component.componentIndex" class="pricing-card-meta d-block">
+                    <strong>{{ component.skuName }}</strong>
+                    <div>{{ component.ServiceCategory }} / {{ component.PriceComponent }}</div>
+                    <div>{{ component.PricingUnit }} · {{ component.region || 'Unknown region' }}</div>
+                    <div>{{ component.vcpu ?? '–' }} vCPU · {{ component.memoryGiB ?? '–' }} GiB RAM</div>
+                    <div>Quantity: {{ component.quantity }} · {{ money(component.monthlyCost) }}/month</div>
+                  </div>
+                </div>
+              </div>
+            </template>
+            <template v-else>
+              <div class="table-responsive">
+                <table class="table comparison-table">
+                  <thead><tr><th>Provider</th><th>Scenario A</th><th>Scenario B</th><th>Difference (B − A)</th></tr></thead>
+                  <tbody>
+                    <tr v-for="item in currentRows" :key="item.label">
+                      <th>{{ item.label }}</th>
+                      <td>{{ money(item.resultA.totalMonthlyCost) }}</td>
+                      <td>{{ money(item.resultB.totalMonthlyCost) }}</td>
+                      <td>{{ money(difference(item.resultA.totalMonthlyCost, item.resultB.totalMonthlyCost)) }}</td>
                     </tr>
                   </tbody>
                 </table>
               </div>
+              <div v-for="item in currentRows" :key="item.label" class="mt-4">
+                <h5 class="text-white">{{ item.label }}</h5>
+                <div class="comparison-kpi-container">
+                  <div v-for="(result, index) in [item.resultA, item.resultB]" :key="index" class="pricing-card">
+                    <h6 class="pricing-card-title">Scenario {{ index === 0 ? 'A' : 'B' }} — {{ result.scenarioName }}</h6>
+                    <div class="pricing-card-price">{{ money(result.totalMonthlyCost) }}</div>
+                    <p v-for="issue in result.issues" :key="issue" class="text-warning small mt-2">{{ issue }}</p>
+                    <div v-for="component in result.components" :key="component.componentIndex" class="pricing-card-meta d-block">
+                      <strong>{{ component.skuName }}</strong>
+                      <div>{{ component.PriceComponent }} · {{ component.PricingUnit }} · {{ component.region }}</div>
+                      <div>Quantity: {{ component.quantity }} · {{ money(component.monthlyCost) }}/month</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </template>
           </div>
-
         </div>
       </div>
-    </div>
-
-  </template>
-
-</div>
+    </template>
+  </div>
 </template>
 
 <style scoped src="@/assets/styles/views/Compare.scss"></style>
