@@ -4,9 +4,10 @@ import Card from '@/components/Card.vue'
 import { usePricingData, loadDefault, importPricingFile } from '@/composables/usePricingData'
 
 const cards = [
-  { title: 'Explore Data', message: 'See instance pricing and metrics across providers.', reference: 'explore' },
-  { title: 'Compare', message: 'Set two providers or scenarios side-by-side.', reference: 'compare' },
-  { title: 'Evaluate Policies', message: 'Rank providers by cost, performance, or a policy you define.', reference: 'evaluation' },
+  { title: 'Explore Data', message: 'Browse cloud pricing data, filter services, and explore costs across providers.', reference: 'explore' },
+  { title: 'Compare', message: 'Compare cloud providers and workload scenarios by cost and technical specifications.', reference: 'compare' },
+  { title: 'Evaluate Policies', message: 'Evaluate cloud alternatives using weighted policies and performance criteria.', reference: 'evaluation' },
+  { title: 'Optimization Recommendations', message: 'Submit workload requirements and explore recommended cloud configurations based on cost, performance, and optimization scores.', reference: 'optimization'}
 ]
 
 const { loading, error, options, source, sourceName, importReport } = usePricingData({ autoLoad: false })

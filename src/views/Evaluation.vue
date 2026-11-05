@@ -1,273 +1,134 @@
+
 <script setup>
 import { ref, computed, watch } from 'vue';
 import { policyPresets, DEFAULT_WEIGHTS } from '@/data/policyPresets';
 import { usePricingData } from '@/composables/usePricingData';
 import { useScenarioScoring } from '@/composables/useScenarioScoring';
- 
-import {
-  SCENARIO_CRITERIA as CRITERIA, presetLabels, SUBCATEGORY_LABELS, REGION_GROUP_LABELS,
-  PRICING_MODEL_LABELS, DEFAULT_SUBCATEGORY, EVAL_TOP_N, QUADRANT_LIMIT,
-} from '@/data/constants';
-import { colorFor, paretoFrontier2D, uniqSorted, cheapestPerSku, fmt } from '@/utils/calculationServices';
+import { SCENARIO_CRITERIA, presetLabels, EVAL_TOP_N, QUADRANT_LIMIT } from '@/data/constants';
+import { colorFor, paretoFrontier2D, fmt } from '@/utils/calculationServices';
+import { prepareEvaluationRecords, cheapestRegionPerSku, EVALUATION_SCOPES } from '@/utils/evaluationHelpers';
+import { MAX_HOURS_PER_MONTH } from '@/utils/pricingCalculator';
 
-const { records, loading, error, options, sourceName } = usePricingData();
-
-const domain = ref(null);
-const subcategory = ref(DEFAULT_SUBCATEGORY);
-const regionGroup = ref(null);
+const { records, loading, error, sourceName } = usePricingData();
+const domain = ref('Compute');
+const subcategory = ref(null);
+const regionGroup = ref('Europe');
 const operatingSystem = ref(null);
 const dbEngine = ref(null);
-const pricingModel = ref('on_demand');
-const requireSpecs = ref(true);      
+const pricingModel = ref('Standard');
+const requireSpecs = ref(true);
 const bestRegionOnly = ref(true);
-
+const minVCpu = ref(4);
+const minMemoryGiB = ref(16);
+const hoursPerMonth = ref(730);
+const storageGBMonths = ref(100);
 const viewMode = ref('table');
 const lastPreset = ref('balanced');
 const expandedId = ref(null);
 
-watch(
-  () => options.value.domains,
-  (domains) => {
-    if (domains.length && !domains.includes(domain.value)) {
-      domain.value = domains.includes('Database') ? 'Database' : domains[0];
-    }
-  },
-  { immediate: true }
-);
+const domains = Object.keys(EVALUATION_SCOPES);
+const inDomain = computed(() => records.value.filter(row => row.ServiceCategory === domain.value));
+function uniqueField(field) {
+  return [...new Set(inDomain.value.map(row => row[field]).filter(value => value != null && value !== ''))].sort();
+}
+const subcategoryOptions = computed(() => uniqueField('ServiceSubcategory'));
+const engineOptions = computed(() => uniqueField('DatabaseEngine'));
+const regionOptions = computed(() => uniqueField('RegionGroup'));
+const osOptions = computed(() => uniqueField('OperatingSystem'));
+const pricingOptions = computed(() => uniqueField('PricingCategory'));
+const isStorage = computed(() => domain.value === 'Storage');
+const activeCriteria = computed(() => SCENARIO_CRITERIA[domain.value] ?? []);
 
-const inDomain = computed( () => {
-  return records.value.filter( (record) => {
-    return record.domain === domain.value;
-  });
-});
-
-const subcategoryOptions = computed( () => {
-  return uniqSorted(inDomain.value.map( (record) => {
-    return record.subcategory;
-  }));
-});
- 
-const engineOptions = computed( () => {
-  return uniqSorted(inDomain.value.map( (record) => {
-    return record.db_engine;
-  }));
-});
-
-const poolBeforeDedupe = computed(function () {
-  if (!domain.value) {
-    return [];
-  }
- 
-  return inDomain.value.filter( (record) => {
-    if (subcategory.value && record.subcategory !== subcategory.value) {
-      return false;
-    }
- 
-    if (
-      regionGroup.value &&
-      record.region_group !== regionGroup.value &&
-      record.region_group !== 'global'
-    ) {
-      return false;
-    }
- 
-    if (operatingSystem.value && record.operating_system !== operatingSystem.value) {
-      return false;
-    }
-    if (dbEngine.value && record.db_engine !== dbEngine.value) {
-      return false;
-    }
-    if (pricingModel.value && record.pricing_model !== pricingModel.value) {
-      return false;
-    }
-    if (requireSpecs.value && (record.vcpu_count == null || record.memory_gb == null)) {
-      return false;
-    }
- 
-    return true;
-  });
-});
-
-const items = computed( () => {
-  if (bestRegionOnly.value) {
-    return cheapestPerSku(poolBeforeDedupe.value);
-  }
-  return poolBeforeDedupe.value;
-});
-
+const poolBeforeDedupe = computed(() => prepareEvaluationRecords(records.value, {
+  category: domain.value,
+  subcategory: subcategory.value,
+  regionGroup: regionGroup.value,
+  operatingSystem: operatingSystem.value,
+  dbEngine: dbEngine.value,
+  pricingCategory: pricingModel.value,
+  requireSpecs: requireSpecs.value,
+  minVCpu: isStorage.value ? null : minVCpu.value,
+  minMemoryGiB: isStorage.value ? null : minMemoryGiB.value,
+  hoursPerMonth: hoursPerMonth.value,
+  storageGBMonths: storageGBMonths.value
+}));
+const items = computed(() => bestRegionOnly.value ? cheapestRegionPerSku(poolBeforeDedupe.value) : poolBeforeDedupe.value);
 const presetNames = Object.keys(policyPresets);
-const categoryWeights = ref({});
-
-function applyPreset(name) {
-  const presetWeights = policyPresets[name] ?? DEFAULT_WEIGHTS;
-  categoryWeights.value = { ...presetWeights };
-}
-
-applyPreset('balanced');
-
-function selectPreset(name) {
-  lastPreset.value = name;
-  applyPreset(name);
-}
-
-function setCategoryWeight(cat, value) {
-  categoryWeights.value = { ...categoryWeights.value, [cat]: value };
-}
-
+const categoryWeights = ref({ ...DEFAULT_WEIGHTS });
+function applyPreset(name) { categoryWeights.value = { ...(policyPresets[name] ?? DEFAULT_WEIGHTS) }; }
+function selectPreset(name) { lastPreset.value = name; applyPreset(name); }
+function setCategoryWeight(cat, value) { categoryWeights.value = { ...categoryWeights.value, [cat]: value }; }
 function onDomainChange() {
-  if (subcategoryOptions.value.includes(DEFAULT_SUBCATEGORY)) {
-    subcategory.value = DEFAULT_SUBCATEGORY;
-  } else {
-    subcategory.value = null;
-  }
- 
+  subcategory.value = null;
   dbEngine.value = null;
   operatingSystem.value = null;
-}
-
-watch(domain, () => {
-  applyPreset(lastPreset.value);
   expandedId.value = null;
-});
-
-const { categories, scored } = useScenarioScoring(items, CRITERIA, categoryWeights);
-
-const topScored = computed( () => {
-  return scored.value.slice(0, EVAL_TOP_N);
-});
-
-const providerLegend = computed( () => {
-  const seen = new Map();
-
-  topScored.value.forEach( (item, index) => {
-    if (!seen.has(item.provider)) {
-      seen.set(item.provider, colorFor(item.provider, index));
-    }
-  });
-
-  return [...seen].map( ([provider, color]) => {
-    return { provider, color };
-  });
-});
-
-function toggleExpanded(id) {
-  if (expandedId.value === id) {
-    expandedId.value = null;
-  } else {
-    expandedId.value = id;
-  }
+  resetZoom();
 }
-
-const bestPerProvider = computed( () => {
-  const bestByProvider = new Map();
- 
+watch(sourceName, onDomainChange);
+const { categories, scored } = useScenarioScoring(items, activeCriteria, categoryWeights);
+const topScored = computed(() => scored.value.slice(0, EVAL_TOP_N));
+const bestPerProvider = computed(() => {
+  const best = new Map();
   for (const item of scored.value) {
-    if (!bestByProvider.has(item.provider)) {
-      bestByProvider.set(item.provider, item);
-    }
+    if (item.score != null && !best.has(item.ServiceProviderName)) best.set(item.ServiceProviderName, item);
   }
- 
-  return [...bestByProvider.values()];
+  return [...best.values()];
 });
-
+const providerLegend = computed(() => {
+  const seen = new Map();
+  topScored.value.forEach((item, index) => {
+    if (!seen.has(item.ServiceProviderName)) seen.set(item.ServiceProviderName, colorFor(item.ServiceProviderName, index));
+  });
+  return [...seen].map(([provider, color]) => ({ provider, color }));
+});
+function toggleExpanded(id) { expandedId.value = expandedId.value === id ? null : id; }
 const xCat = ref('Cost');
 const yCat = ref('Performance');
-
-const allPoints = computed( () => {
-  const withBothScores = scored.value.filter( (item) => {
-    return item.breakdown?.[xCat.value] != null && item.breakdown?.[yCat.value] != null;
-  });
- 
-  return withBothScores.map( (item, index) => {
-    return {
-      id: item.id,
-      name: item.skuName,
-      x: item.breakdown[xCat.value],
-      y: item.breakdown[yCat.value],
-      color: colorFor(item.provider, index),
-    };
-  });
+watch(categories, values => {
+  if (!values.includes(xCat.value)) xCat.value = values[0] ?? 'Cost';
+  if (!values.includes(yCat.value)) yCat.value = values[1] ?? values[0] ?? 'Cost';
+}, { immediate: true });
+const allPoints = computed(() => scored.value.filter(item =>
+  item.breakdown[xCat.value] != null && item.breakdown[yCat.value] != null
+).map((item, index) => ({
+  id: item.id,
+  name: item.SkuName || item.SkuId,
+  x: item.breakdown[xCat.value],
+  y: item.breakdown[yCat.value],
+  color: colorFor(item.ServiceProviderName, index)
+})));
+const paretoIds = computed(() => new Set(paretoFrontier2D(allPoints.value).map(point => point.id)));
+const quadrantPoints = computed(() => {
+  const topIds = new Set(scored.value.slice(0, QUADRANT_LIMIT).map(item => item.id));
+  return allPoints.value.filter(point => topIds.has(point.id) || paretoIds.value.has(point.id));
 });
-
-const paretoIds = computed( () => {
-  if (allPoints.value.length === 0) {
-    return new Set();
-  }
- 
-  const frontier = paretoFrontier2D(allPoints.value);
-  return new Set(frontier.map( (point) => {
-    return point.id;
-  }));
-});
-
-const quadrantPoints = computed( () => {
-  const topIds = new Set(
-    scored.value.slice(0, QUADRANT_LIMIT).map( (item) => {
-      return item.id;
-    })
-  );
- 
-  return allPoints.value.filter( (point) => {
-    return topIds.has(point.id) || paretoIds.value.has(point.id);
-  });
-});
-
-const quadrantAvailable = computed( () => {
-  return quadrantPoints.value.length > 0;
-});
-
+const quadrantAvailable = computed(() => quadrantPoints.value.length > 0 && xCat.value !== yCat.value);
 const PAD = 48;
 const SIZE = 640;
-
 const PLOT = SIZE - PAD * 2;
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 12;
-
 const svgEl = ref(null);
 const zoom = ref(1);
 const centerX = ref(0.5);
 const centerY = ref(0.5);
 const isDragging = ref(false);
 let lastPointer = { x: 0, y: 0 };
-
-const span = computed( () => {
-  return 1 / zoom.value;
-});
-const x0 = computed( () => {
-  return centerX.value - span.value / 2;
-});
-const y0 = computed( () => {
-  return centerY.value - span.value / 2;
-});
-
-function toSvgX(x) {
-  return PAD + ((x - x0.value) / span.value) * PLOT;
-}
-
-function toSvgY(y) {
-  return SIZE - PAD - ((y - y0.value) / span.value) * PLOT;
-}
-
+const span = computed(() => 1 / zoom.value);
+const x0 = computed(() => centerX.value - span.value / 2);
+const y0 = computed(() => centerY.value - span.value / 2);
+function toSvgX(x) { return PAD + ((x - x0.value) / span.value) * PLOT; }
+function toSvgY(y) { return SIZE - PAD - ((y - y0.value) / span.value) * PLOT; }
 const hoveredId = ref(null);
-
-function shortName(name, max = 18) {
-  return name.length > max ? name.slice(0, max - 1) + '…' : name;
-}
-
-function labelAnchor(p) {
-  return toSvgX(p.x) > SIZE * 0.7 ? 'end' : 'start';
-}
-
-function labelDx(p) {
-  return labelAnchor(p) === 'end' ? -10 : 10;
-}
-
+function shortName(name, max = 18) { return name.length > max ? name.slice(0, max - 1) + '…' : name; }
+function labelAnchor(p) { return toSvgX(p.x) > SIZE * 0.7 ? 'end' : 'start'; }
+function labelDx(p) { return labelAnchor(p) === 'end' ? -10 : 10; }
 function clampCenter() {
   const half = span.value / 2;
   centerX.value = Math.min(1 - half, Math.max(half, centerX.value));
   centerY.value = Math.min(1 - half, Math.max(half, centerY.value));
 }
-
 function pointerInfo(evt) {
   const rect = svgEl.value.getBoundingClientRect();
   const sx = ((evt.clientX - rect.left) * SIZE) / rect.width;
@@ -276,47 +137,26 @@ function pointerInfo(evt) {
   const fy = (SIZE - PAD - sy) / PLOT;
   return { fx, fy, dx: x0.value + fx * span.value, dy: y0.value + fy * span.value };
 }
-
 function zoomAt(factor, evt) {
   const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom.value * factor));
-  if (newZoom === zoom.value) {
-    return;
-  }
-
+  if (newZoom === zoom.value) return;
   let fx = 0.5, fy = 0.5, dx = centerX.value, dy = centerY.value;
-  if (evt) {
-    ({ fx, fy, dx, dy } = pointerInfo(evt));
-  }
-
+  if (evt) ({ fx, fy, dx, dy } = pointerInfo(evt));
   zoom.value = newZoom;
   const newSpan = 1 / newZoom;
   centerX.value = dx - fx * newSpan + newSpan / 2;
   centerY.value = dy - fy * newSpan + newSpan / 2;
   clampCenter();
 }
-
-function onWheel(evt) {
-  zoomAt(evt.deltaY < 0 ? 1.25 : 1 / 1.25, evt);
-}
-
-function resetZoom() {
-  zoom.value = 1;
-  centerX.value = 0.5;
-  centerY.value = 0.5;
-}
-
+function onWheel(evt) { zoomAt(evt.deltaY < 0 ? 1.25 : 1 / 1.25, evt); }
+function resetZoom() { zoom.value = 1; centerX.value = 0.5; centerY.value = 0.5; }
 function startDrag(evt) {
-  if (zoom.value <= 1) {
-    return;
-  }
+  if (zoom.value <= 1) return;
   isDragging.value = true;
   lastPointer = { x: evt.clientX, y: evt.clientY };
 }
-
 function onDrag(evt) {
-  if (!isDragging.value) {
-    return;
-  }
+  if (!isDragging.value) return;
   const rect = svgEl.value.getBoundingClientRect();
   const dxSvg = ((evt.clientX - lastPointer.x) * SIZE) / rect.width;
   const dySvg = ((evt.clientY - lastPointer.y) * SIZE) / rect.height;
@@ -325,26 +165,10 @@ function onDrag(evt) {
   clampCenter();
   lastPointer = { x: evt.clientX, y: evt.clientY };
 }
-
-function endDrag() {
-  isDragging.value = false;
-}
-
+function endDrag() { isDragging.value = false; }
 watch([xCat, yCat], resetZoom);
-
-function showLabel(p) {
-  return zoom.value >= 2 || paretoIds.value.has(p.id) || hoveredId.value === p.id;
-}
-
-watch(sourceName, () => {
-  subcategory.value = DEFAULT_SUBCATEGORY;
-  regionGroup.value = null;
-  operatingSystem.value = null;
-  dbEngine.value = null;
-  pricingModel.value = 'on_demand';
-  expandedId.value = null;
-});
-
+function showLabel(p) { return zoom.value >= 2 || paretoIds.value.has(p.id) || hoveredId.value === p.id; }
+function scoreText(value) { return value == null ? 'N/A' : (value * 100).toFixed(1) + '%'; }
 </script>
 
 <template>
@@ -357,56 +181,44 @@ watch(sourceName, () => {
     <template v-else>
  
     <div class="d-flex gap-3 mb-3 flex-wrap align-items-center">
-
-      <div class="data-ex-form-cont">
-        <label class="form-label" style="color: white">Domain</label>
-        <select class="form-select w-auto custom-form-select" v-model="domain" @change="onDomainChange">
-          <option v-for="d in options.domains" :key="d" :value="d">{{ d }}</option>
+      <div class="data-ex-form-cont"><label class="form-label text-white">Category</label>
+        <select class="form-select custom-form-select" v-model="domain" @change="onDomainChange">
+          <option v-for="d in domains" :key="d" :value="d">{{ d }}</option>
         </select>
       </div>
-
-      <div class="data-ex-form-cont">
-        <label class="form-label" style="color: white">Resource type</label>
-        <select class="form-select w-auto custom-form-select" v-model="subcategory">
-          <option :value="null">Any type</option>
-          <option v-for="s in subcategoryOptions" :key="s" :value="s">{{ SUBCATEGORY_LABELS[s] ?? s }}</option>
-        </select>
+      <div class="data-ex-form-cont"><label class="form-label text-white">Subcategory</label>
+        <select class="form-select custom-form-select" v-model="subcategory"><option :value="null">Any</option>
+          <option v-for="s in subcategoryOptions" :key="s" :value="s">{{ s }}</option></select>
       </div>
-
-      <div class="data-ex-form-cont">
-        <label class="form-label" style="color: white">Area</label>
-        <select class="form-select w-auto custom-form-select" v-model="regionGroup">
-          <option :value="null">Any area</option>
-          <option v-for="g in options.regionGroups" :key="g" :value="g">{{ REGION_GROUP_LABELS[g] ?? g }}</option>
-        </select>
+      <div class="data-ex-form-cont"><label class="form-label text-white">Area</label>
+        <select class="form-select custom-form-select" v-model="regionGroup"><option :value="null">Any</option>
+          <option v-for="g in regionOptions" :key="g" :value="g">{{ g }}</option></select>
       </div>
-
-      <div class="data-ex-form-cont">
-        <label class="form-label" style="color: white">Operating System</label>
-        <select class="form-select w-auto custom-form-select" v-model="operatingSystem">
-          <option :value="null">Any OS</option>
-          <option v-for="os in options.operatingSystems" :key="os" :value="os">{{ os }}</option>
-        </select>
+      <div v-if="!isStorage" class="data-ex-form-cont"><label class="form-label text-white">OS</label>
+        <select class="form-select custom-form-select" v-model="operatingSystem"><option :value="null">Any</option>
+          <option v-for="os in osOptions" :key="os" :value="os">{{ os }}</option></select>
       </div>
-
-      <div class="data-ex-form-cont">
-        <label class="form-label" style="color: white">DB engine</label>
-        <select v-if="engineOptions.length" class="form-select w-auto custom-form-select" v-model="dbEngine">
-          <option :value="null">Any engine</option>
-          <option v-for="e in engineOptions" :key="e" :value="e">{{ e }}</option>
-        </select>
+      <div v-if="domain === 'Databases'" class="data-ex-form-cont"><label class="form-label text-white">DB engine</label>
+        <select class="form-select custom-form-select" v-model="dbEngine"><option :value="null">Any</option>
+          <option v-for="e in engineOptions" :key="e" :value="e">{{ e }}</option></select>
       </div>
-      
-      <div class="data-ex-form-cont">
-        <label class="form-label" style="color: white">Pricing model</label>
-        <select class="form-select w-auto custom-form-select" v-model="pricingModel">
-          <option :value="null">Any pricing</option>
-          <option v-for="m in options.pricingModels" :key="m" :value="m">{{ PRICING_MODEL_LABELS[m] ?? m }}</option>
-        </select>
+      <div class="data-ex-form-cont"><label class="form-label text-white">Pricing category</label>
+        <select class="form-select custom-form-select" v-model="pricingModel">
+          <option v-for="m in pricingOptions" :key="m" :value="m">{{ m }}</option></select>
       </div>
-
+      <div class="data-ex-form-cont"><label class="form-label text-white">Hours / month</label>
+        <input class="form-control" type="number" min="0" :max="MAX_HOURS_PER_MONTH" step="1" v-model.number="hoursPerMonth" /></div>
+      <template v-if="!isStorage">
+        <div class="data-ex-form-cont"><label class="form-label text-white">Min vCPU</label>
+          <input class="form-control" type="number" min="0" step="1" v-model.number="minVCpu" /></div>
+        <div class="data-ex-form-cont"><label class="form-label text-white">Min RAM (GiB)</label>
+          <input class="form-control" type="number" min="0" step="1" v-model.number="minMemoryGiB" /></div>
+      </template>
+      <div v-else class="data-ex-form-cont"><label class="form-label text-white">Storage GB-months</label>
+        <input class="form-control" type="number" min="0" step="1" v-model.number="storageGBMonths" /></div>
     </div>
- 
+    <div class="text-white-50 small mb-3">Comparing {{ EVALUATION_SCOPES[domain].priceComponent }} charges billed per {{ EVALUATION_SCOPES[domain].pricingUnit }} in USD. Monthly cost is calculated for the specified usage.</div>
+
     <div class="d-flex gap-3 mb-3 flex-wrap align-items-center">
       <div class="btn-group">
         <button v-for="name in presetNames" :key="name" class="btn btn-outline-primary"
@@ -415,14 +227,14 @@ watch(sourceName, () => {
         </button>
       </div>
  
-      <div class="form-check text-white">
+      <div v-if="!isStorage" class="form-check text-white">
         <input id="req-specs" type="checkbox" class="form-check-input" v-model="requireSpecs" />
         <label for="req-specs" class="form-check-label">Known vCPU + memory only</label>
       </div>
  
       <div class="form-check text-white">
         <input id="best-region" type="checkbox" class="form-check-input" v-model="bestRegionOnly" />
-        <label for="best-region" class="form-check-label">Cheapest region per SKU</label>
+        <label for="best-region" class="form-check-label">Cheapest region per SKU (within matching configuration)</label>
       </div>
  
       <div class="btn-group ms-auto">
@@ -442,11 +254,11 @@ watch(sourceName, () => {
     </div>
  
     <div v-if="bestPerProvider.length" class="d-flex gap-3 flex-wrap mb-4">
-      <div v-for="item in bestPerProvider" :key="item.provider" class="border rounded p-2 text-white small" style="min-width: 260px">
-        <div class="text-white-50">Best {{ item.provider }} option</div>
-        <div class="fw-bold">{{ item.skuName }}</div>
-        <div>{{ item.region }} · {{ fmt(item.effective_price_hr) }} {{ item.currencyCode }}/hr · {{ item.vcpu_count }} vCPU / {{ item.memory_gb }} GB</div>
-        <div>Score {{ (item.score * 100).toFixed(1) }}%</div>
+      <div v-for="item in bestPerProvider" :key="item.ServiceProviderName" class="border rounded p-2 text-white small" style="min-width: 260px">
+        <div class="text-white-50">Best {{ item.ServiceProviderName }} option</div>
+        <div class="fw-bold">{{ (item.SkuName || item.SkuId) }}</div>
+        <div>{{ item.RegionId }} · {{ fmt(item.monthlyCost) }} USD/month · {{ item.VCpu }} vCPU / {{ item.MemoryGiB }} GB</div>
+        <div>Score {{ scoreText(item.score) }}</div>
       </div>
     </div>
  
@@ -465,7 +277,7 @@ watch(sourceName, () => {
               <th>Provider</th>
               <th>SKU</th>
               <th>Region</th>
-              <th>Price / hr</th>
+              <th>Monthly cost (USD)</th>
               <th>Score</th>
               <th></th>
             </tr>
@@ -474,20 +286,19 @@ watch(sourceName, () => {
             <template v-for="(item, index) in topScored" :key="item.id">
               <tr class="rank-row" @click="toggleExpanded(item.id)">
                 <td>{{ index + 1 }}</td>
-                <td>{{ item.provider }}</td>
-                <td>{{ item.skuName }}</td>
-                <td>{{ item.region }}</td>
-                <td>{{ fmt(item.effective_price_hr) }}</td>
-                <td>{{ (item.score * 100).toFixed(1) }}%</td>
+                <td>{{ item.ServiceProviderName }}</td>
+                <td>{{ (item.SkuName || item.SkuId) }}</td>
+                <td>{{ item.RegionId }}</td>
+                <td>{{ fmt(item.monthlyCost) }}</td>
+                <td>{{ scoreText(item.score) }}</td>
                 <td class="text-end text-white-50">{{ expandedId === item.id ? '▲' : '▼' }}</td>
               </tr>
               <tr v-if="expandedId === item.id" class="breakdown-row">
                 <td colspan="7">
                   <div class="text-white-50 small mb-2">
-                    {{ item.vcpu_count }} vCPU · {{ item.memory_gb }} GB ·
-                    {{ fmt(item.price_per_vcpu_hr) }} per vCPU-hr · {{ fmt(item.price_per_gb_hr) }} per GB-hr ·
-                    {{ REGION_GROUP_LABELS[item.region_group] ?? item.region_group }}
-                    <span v-if="item.specs_inferred"> · specs estimated</span>
+                    {{ item.RegionGroup }} · {{ item.PricingUnit }} · {{ item.PriceComponent }}
+                    <template v-if="!isStorage"> · {{ item.VCpu }} vCPU · {{ item.MemoryGiB }} GiB ·
+                    {{ fmt(item.costPerVCpu) }} USD/month/vCPU · {{ fmt(item.costPerMemoryGiB) }} USD/month/GiB</template>
                   </div>
                   <div class="breakdown-bars">
                     <div v-for="cat in categories" :key="cat" class="breakdown-bar-item">
@@ -496,7 +307,7 @@ watch(sourceName, () => {
                         <div class="progress-bar" :style="{ width: ((item.breakdown[cat] ?? 0) * 100) + '%' }"></div>
                       </div>
                       <span class="breakdown-bar-value">
-                        {{ item.breakdown[cat] != null ? (item.breakdown[cat] * 100).toFixed(0) + '%' : 'N/A' }}
+                        {{ scoreText(item.breakdown[cat]) }}
                       </span>
                     </div>
                   </div>
@@ -528,7 +339,7 @@ watch(sourceName, () => {
       </div>
  
       <div v-if="!quadrantAvailable" class="text-white-50">
-        Not enough scored records to plot a quadrant chart.
+        Not enough comparable category scores to plot two distinct axes.
       </div>
 
       <div v-else class="quadrant-chart-wrap">
@@ -594,12 +405,12 @@ watch(sourceName, () => {
         <div class="breakdown-grid-label">{{ cat }}</div>
         <div class="breakdown-grid-bars">
           <div v-for="(item, index) in topScored" :key="item.id" class="breakdown-grid-bar-item">
-            <span class="breakdown-grid-name">{{ item.skuName }}</span>
+            <span class="breakdown-grid-name">{{ (item.SkuName || item.SkuId) }}</span>
             <div class="progress">
-              <div class="progress-bar" :style="{ width: ((item.breakdown[cat] ?? 0) * 100) + '%', backgroundColor: colorFor(item.provider, index),}"></div>
+              <div class="progress-bar" :style="{ width: ((item.breakdown[cat] ?? 0) * 100) + '%', backgroundColor: colorFor(item.ServiceProviderName, index) }"></div>
             </div>
             <span class="breakdown-grid-value">
-              {{ item.breakdown[cat] != null ? (item.breakdown[cat] * 100).toFixed(0) + '%' : 'N/A' }}
+              {{ scoreText(item.breakdown[cat]) }}
             </span>
           </div>
         </div>

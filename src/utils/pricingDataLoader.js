@@ -5,10 +5,8 @@ import Papa from 'papaparse';
 import Ajv2020 from 'ajv/dist/2020.js';
 
 export const DEFAULT_CSV_URL = `${BASE_URL}data/mock_data2.csv`
-
-export const CSV_SCHEMA_URL = `${BASE_URL}data/unified_pricing.table-schema.json`;
-
-export const JSON_SCHEMA_URL = `${BASE_URL}data/json_exchange_schema.json`;
+export const CSV_SCHEMA_URL = `${BASE_URL}schemas/unified_pricing.table-schema.json`;
+export const JSON_SCHEMA_URL = `${BASE_URL}schemas/json_exchange_schema.json`;
 
 let schemasPromise = null;
 

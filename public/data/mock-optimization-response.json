@@ -1,0 +1,25 @@
+{
+  "recommendations": [
+    {
+      "sku_id": "mock-aws-compute-01",
+      "provider": "AWS",
+      "monthly_cost": 145.50,
+      "score": 0.92,
+      "rationale": "Satisfies the requested CPU and memory requirements."
+    },
+    {
+      "sku_id": "mock-azure-compute-01",
+      "provider": "Azure",
+      "monthly_cost": 151.20,
+      "score": 0.87,
+      "rationale": "Eligible alternative for the requested workload."
+    },
+    {
+      "sku_id": "mock-gcp-compute-01",
+      "provider": "GCP",
+      "monthly_cost": 158.40,
+      "score": 0.83,
+      "rationale": "Alternative configuration meeting the workload constraints."
+    }
+  ]
+}

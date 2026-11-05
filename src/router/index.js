@@ -27,7 +27,7 @@ const routes = [
   {
     path: '/evaluation',
     component: Evaluation
-  }
+  },
 
 ]
 

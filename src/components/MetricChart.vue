@@ -1,3 +1,4 @@
+
 <script setup>
 import { ref, computed, watch } from 'vue';
 import {
@@ -44,6 +45,8 @@ ChartJS.register(crosshairPlugin);
 const props = defineProps({
   // Records to visualize: [{ id, name, color, ...numeric fields }]
   records: { type: Array, required: true },
+  // Optional chart types for contexts with fewer meaningful metrics.
+  types: { type: Array, default: () => ['Bar', 'Line', 'Pie', 'Radar', 'Scatter'] },
  
   // Plottable numeric fields: [{ id: 'effective_price_hr', name: 'Price / hr' }, ...]
   columns: {
@@ -56,7 +59,7 @@ const props = defineProps({
 
 const emit = defineEmits(['select']);
 
-const CHART_TYPES = ['Bar', 'Line', 'Pie', 'Radar', 'Scatter'];
+const CHART_TYPES = computed(() => props.types.filter(type => ['Bar', 'Line', 'Pie', 'Radar', 'Scatter'].includes(type)));
 
 const visualizationType = ref('Bar');
 
@@ -93,12 +96,6 @@ const chartComponent = computed(function () {
     default:
       return Bar;
   }
-});
-
-const selectedRecord = computed(function () {
-  return props.records.find(function (record) {
-    return record.id === selectedId.value;
-  });
 });
 
 const PALETTE = ['#4ade80', '#1e44b9', '#ca309e', '#f59e0b', '#6366f1', '#f97316'];
@@ -363,12 +360,15 @@ function buildPieDataset() {
 function buildScatterDataset() {
   // One point per record that has BOTH an x and a y value
   const points = [];
-  for (const record of props.records) {
+  const pointColors = [];
+  for (let index = 0; index < props.records.length; index++) {
+    const record = props.records[index];
     const x = valueFor(record, xField.value);
     const y = valueFor(record, yField.value);
  
-    if (x != null && y != null) {
+    if (typeof x === 'number' && Number.isFinite(x) && typeof y === 'number' && Number.isFinite(y)) {
       points.push({ x: x, y: y, _label: record.name ?? record.id, _id: record.id });
+      pointColors.push(displayColorFor(record, index));
     }
   }
  
@@ -376,10 +376,7 @@ function buildScatterDataset() {
     datasets: [{
       label: `${fieldName(xField.value)} vs ${fieldName(yField.value)}`,
       data: points,
-      // NOTE: colors are indexed by position in props.records, not by position in `points`
-      backgroundColor: props.records.map(function (record, index) {
-        return displayColorFor(record, index);
-      }),
+      backgroundColor: pointColors,
       // Selected point is drawn larger
       pointRadius: function (context) {
         if (context.raw?._id === selectedId.value) {
@@ -392,7 +389,7 @@ function buildScatterDataset() {
 }
  
 // One polygon per record across all fields (normalized 0-100).
-// Missing values count as 0.
+// Missing values remain null rather than implying a zero measurement.
 function buildRadarDataset() {
   const ranges = computeFieldRanges();
  
@@ -407,7 +404,7 @@ function buildRadarDataset() {
       return {
         label: record.name ?? record.id,
         data: props.columns.map(function (field) {
-          return normalizeToPercent(ranges, field.id, valueFor(record, field.id), 0);
+          return normalizeToPercent(ranges, field.id, valueFor(record, field.id), null);
         }),
         borderColor: color,
         backgroundColor: color + '2a',   // same color, ~16% opacity
@@ -640,6 +637,24 @@ watch(
     selectedId.value = null;
   }
 );
+
+watch(
+  function () {
+    return props.columns;
+  },
+  function () {
+    const ids = props.columns.map(column => column.id);
+    if (!ids.includes(subfieldType.value)) subfieldType.value = ids[0] ?? null;
+    if (!ids.includes(xField.value)) xField.value = ids[0] ?? null;
+    if (!ids.includes(yField.value)) yField.value = ids[1] ?? ids[0] ?? null;
+  }
+);
+
+watch(CHART_TYPES, function (types) {
+  if (!types.includes(visualizationType.value)) {
+    visualizationType.value = types[0] ?? 'Bar';
+  }
+}, { immediate: true });
 
 </script>
 

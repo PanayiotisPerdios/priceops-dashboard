@@ -53,8 +53,13 @@ export function calculateMonthlyCost(record, usage = {}) {
         }
 
         case 'Month': {
-            quantity = usage.billableYears;
+            quantity = usage.billableMonths;
             break;
+        }
+
+        case 'Years':{
+            quantity = usage.billableYears;
+            break
         }
 
         case 'vCPU-Hour': {

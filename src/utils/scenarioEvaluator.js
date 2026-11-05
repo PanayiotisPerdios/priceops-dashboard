@@ -61,8 +61,6 @@ function commonMatch(row, scenario, provider, component) {
 }
 
 function eligible(row, component) {
-    // Match the canonical schema fields selected by
-    // the user, without provider-specific assumptions.
   for (const field of COMPONENT_FILTER_FIELDS) {
     const requestedValue = component[field];
 
@@ -73,7 +71,6 @@ function eligible(row, component) {
     }
   }
 
-    // Optional minimum technical requirements.
   if (component.minVCpu != null) {
       if (!finite(component.minVCpu)) {
         return false;
@@ -107,8 +104,6 @@ function eligible(row, component) {
 function usageFor(component, scenario) {
   const usage = { hoursPerMonth: scenario.hoursPerMonth };
 
-  // Scenario hours apply unless the component
-  // explicitly overrides them.
   if (component.usage != null) {
     for (const key of Object.keys(component.usage)) {
       usage[key] = component.usage[key];
@@ -131,7 +126,6 @@ function failed(provider, name, issues) {
     };
 }
 
-//TODO implement more policies
 function compareByCost(a, b) {
     if (a.cost < b.cost) {
         return -1;
@@ -141,7 +135,6 @@ function compareByCost(a, b) {
         return 1;
     }
 
-    // Tie-break using SKU ID.
     const skuA = String(a.row.SkuId ?? '');
     const skuB = String(b.row.SkuId ?? '');
 
@@ -239,7 +232,6 @@ export function evaluateScenario(records, scenario, provider) {
     const usage = usageFor(component, scenario);
     const candidates = [];
 
-    // Find eligible pricing records.
     for (const row of records) {
 
       if (!commonMatch(row, scenario, provider, component)) {
@@ -250,7 +242,6 @@ export function evaluateScenario(records, scenario, provider) {
         continue;
       }
 
-      // Calculate monthly cost for this candidate.
       const cost = calculateComponentCost(row, usage, component.quantity);
 
       if (!finite(cost)) {
@@ -260,7 +251,6 @@ export function evaluateScenario(records, scenario, provider) {
       candidates.push({row: row, cost: cost});
     }
 
-    // Sort by monthly cost, cheapest first.
     candidates.sort(compareByCost);
 
     if (candidates.length === 0) {
@@ -269,7 +259,6 @@ export function evaluateScenario(records, scenario, provider) {
       continue;
     }
 
-    // Select cheapest eligible record.
     const chosen = candidates[0];
     const row = chosen.row;
 

@@ -1,0 +1,16 @@
+{
+  "regionGroup": "North America",
+  "operatingSystem": "Linux",
+  "pricingCategory": "Standard",
+  "hoursPerMonth": 730,
+  "components": [
+    {
+      "ServiceCategory": "Compute",
+      "PriceComponent": "Instance",
+      "PricingUnit": "Hour",
+      "quantity": 1,
+      "minVCpu": 4,
+      "minMemoryGiB": 16
+    }
+  ]
+}

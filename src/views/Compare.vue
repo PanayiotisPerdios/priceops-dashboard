@@ -2,12 +2,18 @@
 import { ref, computed, watch } from 'vue';
 import { usePricingData } from '@/composables/usePricingData';
 import { evaluateScenario, evaluateAllProviders, PROVIDERS } from '@/utils/scenarioEvaluator';
+import { exportCompareCSV, exportCompareJSON} from '@/utils/exportHelpers';
+import { colorFor } from '@/utils/calculationServices';
+import MetricChart from '@/components/MetricChart.vue';
 
 const { records, loading, error, sourceName } = usePricingData();
 const compareMode = ref('provider');
-const activeTab = ref('chart');
+const activeTab = ref('details');
 const providerA = ref('AWS');
 const providerB = ref('Azure');
+const compareChartColumns = [
+  { id: 'monthlyCost', name: 'Monthly cost (USD)' }
+];
 
 const usageFields = [
   { key: 'hourlyUnits', label: 'Hourly units' },
@@ -67,6 +73,7 @@ const providerOptions = computed(() => {
   const found = distinct(records.value.map(row => row.ServiceProviderName));
   return PROVIDERS.filter(provider => found.includes(provider));
 });
+
 const regionOptions = computed(() => distinct(records.value.map(row => row.RegionGroup)));
 const pricingOptions = computed(() => distinct(records.value.map(row => row.PricingCategory)));
 const osOptions = computed(() => distinct(records.value.map(row => row.OperatingSystem)));
@@ -141,11 +148,27 @@ function preparedScenario(scenario) {
       requiresOS: component.requiresOS,
       usage: { ...component.usage }
     };
-    if (component.ServiceSubcategory) prepared.ServiceSubcategory = component.ServiceSubcategory;
-    if (component.ServiceName) prepared.ServiceName = component.ServiceName;
-    if (component.PricingUnit) prepared.PricingUnit = component.PricingUnit;
-    if (component.minVCpu !== '' && component.minVCpu != null) prepared.minVCpu = component.minVCpu;
-    if (component.minMemoryGiB !== '' && component.minMemoryGiB != null) prepared.minMemoryGiB = component.minMemoryGiB;
+
+    if (component.ServiceSubcategory){
+      prepared.ServiceSubcategory = component.ServiceSubcategory;
+    } 
+    
+    if (component.ServiceName) {
+      prepared.ServiceName = component.ServiceName;
+    }
+
+    if (component.PricingUnit){
+      prepared.PricingUnit = component.PricingUnit;
+    }
+
+    if (component.minVCpu !== '' && component.minVCpu != null){
+      prepared.minVCpu = component.minVCpu;
+    }
+
+    if (component.minMemoryGiB !== '' && component.minMemoryGiB != null){
+      prepared.minMemoryGiB = component.minMemoryGiB;
+    }
+
     result.components.push(prepared);
   }
   return result;
@@ -175,7 +198,9 @@ const currentRows = computed(() => {
 });
 
 function money(value) {
-  if (value == null || !Number.isFinite(value)) return 'N/A';
+  if (value == null || !Number.isFinite(value)) {
+    return 'N/A';
+  }
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(value);
 }
 
@@ -184,47 +209,66 @@ function difference(a, b) {
   return b - a;
 }
 
-function downloadFile(filename, content, type) {
-  const blob = new Blob([content], { type });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-}
+const compareChartRecords = computed(() => {
+  const result = [];
 
-function exportJSON() {
-  const payload = {
-    mode: compareMode.value,
-    scenarioA: preparedScenario(scenarioA.value),
-    scenarioB: compareMode.value === 'scenario' ? preparedScenario(scenarioB.value) : null,
-    results: currentRows.value
-  };
-  downloadFile('comparison.json', JSON.stringify(payload, null, 2), 'application/json');
-}
-
-function csvCell(value) {
-  return `"${String(value ?? '').replaceAll('"', '""')}"`;
-}
-
-function exportCSV() {
-  const lines = [['Mode', 'Provider', 'Scenario', 'Complete', 'MonthlyCostUSD', 'Issues']];
   if (compareMode.value === 'provider') {
     for (const item of currentRows.value) {
-      const r = item.result;
-      lines.push(['Provider', item.label, r.scenarioName, r.complete, r.totalMonthlyCost, r.issues.join('; ')]);
+      if (!item.result.complete || !Number.isFinite(item.result.totalMonthlyCost)) {
+          continue;
+      }
+
+      result.push({
+        id: `provider|${item.label}`,
+        name: item.label,
+        color: colorFor(item.label),
+        monthlyCost: item.result.totalMonthlyCost
+      });
     }
   } else {
     for (const item of currentRows.value) {
-      for (const r of [item.resultA, item.resultB]) {
-        lines.push(['Scenario', item.label, r.scenarioName, r.complete, r.totalMonthlyCost, r.issues.join('; ')]);
+      const scenarioResults = [item.resultA, item.resultB];
+
+      for (let index = 0; index < scenarioResults.length; index++) {
+        const scenarioResult = scenarioResults[index];
+
+        if (!scenarioResult ||
+            !scenarioResult.complete ||
+            !Number.isFinite(scenarioResult.totalMonthlyCost)) {
+          continue;
+        }
+
+        result.push({
+          id: `scenario|${item.label}|${index}`,
+          name: `${item.label} — Scenario ${index === 0 ? 'A' : 'B'}`,
+          color: colorFor(item.label),
+          monthlyCost: scenarioResult.totalMonthlyCost
+        });
       }
     }
   }
-  downloadFile('comparison.csv', lines.map(line => line.map(csvCell).join(',')).join('\n'), 'text/csv');
+
+  return result;
+});
+
+function exportCSV() {
+  exportCompareCSV(compareMode.value, currentRows.value);
+}
+
+function exportJSON() {
+  const mode = compareMode.value;
+
+  const firstScenario = preparedScenario(scenarioA.value);
+
+  let secondScenario = null;
+
+  if (mode === 'scenario') {
+    secondScenario = preparedScenario(scenarioB.value);
+  }
+
+  const results = currentRows.value;
+
+  exportCompareJSON(mode, firstScenario, secondScenario, results);
 }
 
 watch(sourceName, () => {
@@ -236,6 +280,7 @@ watch(sourceName, () => {
 
 <template>
   <div class="page comparison-page">
+    
     <div class="btn-group mb-3">
       <button type="button" class="btn btn-outline-light" :class="{ active: compareMode === 'provider' }" @click="compareMode = 'provider'">Provider</button>
       <button type="button" class="btn btn-outline-light" :class="{ active: compareMode === 'scenario' }" @click="compareMode = 'scenario'">Scenario</button>
@@ -243,39 +288,45 @@ watch(sourceName, () => {
 
     <div v-if="loading" class="text-white-50">Loading pricing data…</div>
     <div v-else-if="error" class="text-danger">Could not load pricing data: {{ error.message }}</div>
+    
     <template v-else>
       <div v-if="compareMode === 'provider'" class="comparison-select-group mb-3 flex-wrap">
+        
         <div class="data-ex-form-cont">
           <label class="form-label text-white">Provider A</label>
           <select v-model="providerA" class="form-select custom-form-select">
             <option v-for="provider in providerOptions" :key="provider" :value="provider">{{ provider }}</option>
           </select>
         </div>
+
         <div class="data-ex-form-cont">
           <label class="form-label text-white">Provider B</label>
           <select v-model="providerB" class="form-select custom-form-select">
             <option v-for="provider in providerOptions" :key="provider" :value="provider">{{ provider }}</option>
           </select>
         </div>
+
         <span v-if="providerA === providerB" class="text-warning small align-self-center">Choose different providers.</span>
       </div>
 
       <p class="text-white-50 small">Costs are calculated from your imported pricing records. Policy: Cost First (cheapest eligible priceable record per workload component).</p>
 
       <div class="scenario-editors">
-        <section v-for="(scenario, scenarioIndex) in (compareMode === 'provider' ? [scenarioA] : [scenarioA, scenarioB])"
-          :key="scenarioIndex" class="comparison-table-container scenario-editor">
+        <section v-for="(scenario, scenarioIndex) in (compareMode === 'provider' ? [scenarioA] : [scenarioA, scenarioB])" :key="scenarioIndex" class="comparison-table-container scenario-editor">
           <h4 class="text-white mb-3">{{ compareMode === 'provider' ? 'Shared workload' : `Scenario ${scenarioIndex === 0 ? 'A' : 'B'}` }}</h4>
 
           <div class="scenario-form-grid">
+            
             <div>
               <label class="form-label">Name</label>
               <input v-model="scenario.name" class="form-control" type="text" />
             </div>
+
             <div>
               <label class="form-label">Hours per month</label>
               <input v-model.number="scenario.hoursPerMonth" class="form-control" type="number" min="0" max="744" step="1" />
             </div>
+
             <div>
               <label class="form-label">Region group</label>
               <select v-model="scenario.regionGroup" class="form-select custom-form-select">
@@ -283,6 +334,7 @@ watch(sourceName, () => {
                 <option v-for="region in regionOptions" :key="region" :value="region">{{ region }}</option>
               </select>
             </div>
+
             <div>
               <label class="form-label">Pricing category</label>
               <select v-model="scenario.pricingCategory" class="form-select custom-form-select">
@@ -290,6 +342,7 @@ watch(sourceName, () => {
                 <option v-for="category in pricingOptions" :key="category" :value="category">{{ category }}</option>
               </select>
             </div>
+
             <div>
               <label class="form-label">Operating system</label>
               <select v-model="scenario.operatingSystem" class="form-select custom-form-select">
@@ -297,30 +350,37 @@ watch(sourceName, () => {
                 <option v-for="os in osOptions" :key="os" :value="os">{{ os }}</option>
               </select>
             </div>
+
             <div>
               <label class="form-label">Policy</label>
               <input class="form-control" value="Cost First" disabled />
             </div>
+
           </div>
 
           <div v-for="(component, index) in scenario.components" :key="index" class="scenario-component mt-3">
+            
             <div class="d-flex justify-content-between align-items-center mb-2">
               <strong class="text-white">Component {{ index + 1 }}</strong>
               <button type="button" class="btn btn-sm btn-outline-danger" :disabled="scenario.components.length === 1" @click="removeComponent(scenario, index)">Remove</button>
             </div>
+
             <div class="scenario-form-grid">
+              
               <div>
                 <label class="form-label">Service category</label>
                 <select v-model="component.ServiceCategory" class="form-select custom-form-select" @change="resetComponentFilters(component)">
                   <option v-for="category in categoryOptions" :key="category" :value="category">{{ category }}</option>
                 </select>
               </div>
+
               <div>
                 <label class="form-label">Price component</label>
                 <select v-model="component.PriceComponent" class="form-select custom-form-select" @change="resetComponentFilters(component)">
                   <option v-for="item in componentOptions" :key="item" :value="item">{{ item }}</option>
                 </select>
               </div>
+
               <div>
                 <label class="form-label">Subcategory</label>
                 <select v-model="component.ServiceSubcategory" class="form-select custom-form-select" @change="component.ServiceName = ''">
@@ -328,6 +388,7 @@ watch(sourceName, () => {
                   <option v-for="item in subcategoryOptions(component)" :key="item" :value="item">{{ item }}</option>
                 </select>
               </div>
+
               <div>
                 <label class="form-label">Service</label>
                 <select v-model="component.ServiceName" class="form-select custom-form-select">
@@ -335,6 +396,7 @@ watch(sourceName, () => {
                   <option v-for="item in serviceOptions(component)" :key="item" :value="item">{{ item }}</option>
                 </select>
               </div>
+
               <div>
                 <label class="form-label">Pricing unit</label>
                 <select v-model="component.PricingUnit" class="form-select custom-form-select">
@@ -342,27 +404,31 @@ watch(sourceName, () => {
                   <option v-for="item in unitOptions" :key="item" :value="item">{{ item }}</option>
                 </select>
               </div>
+
               <div>
                 <label class="form-label">Quantity</label>
                 <input v-model.number="component.quantity" class="form-control" type="number" min="1" step="1" />
               </div>
+
               <div>
                 <label class="form-label">Min vCPU (optional)</label>
                 <input v-model.number="component.minVCpu" class="form-control" type="number" min="0" step="1" />
               </div>
+
               <div>
                 <label class="form-label">Min RAM GiB (optional)</label>
                 <input v-model.number="component.minMemoryGiB" class="form-control" type="number" min="0" step="1" />
               </div>
+
               <label class="scenario-checkbox"><input v-model="component.requiresOS" type="checkbox" /> Require matching OS</label>
+              
             </div>
             <details class="mt-3">
-              <summary class="text-white">Usage quantities (for GB, requests, CPU, storage, etc.)</summary>
+              <summary class="text-white">Usage quantities</summary>
               <div class="scenario-form-grid mt-2">
                 <div v-for="field in usageFields" :key="field.key">
                   <label class="form-label">{{ field.label }}</label>
-                  <input :value="getUsage(component, field.key)" type="number" min="0" step="any" class="form-control"
-                    @input="setUsage(component, field.key, $event.target.value)" />
+                  <input :value="getUsage(component, field.key)" type="number" min="0" step="any" class="form-control" @input="setUsage(component, field.key, $event.target.value)" />
                 </div>
               </div>
               <p class="text-white-50 small mt-2 mb-0">Leave unused quantities empty. For example, GB-Month storage needs storageGBMonths; GB-Hour RAM needs memoryGB. Annual billing may use billableYears = 1/12 for a monthly equivalent.</p>
@@ -378,94 +444,189 @@ watch(sourceName, () => {
       </div>
 
       <div v-if="compareMode === 'provider' && providerA === providerB" class="text-warning text-center">Select two different providers to compare.</div>
-      <div v-else class="comparison-container">
-        <div class="tabs-wrapper">
-          <ul class="nav nav-tabs">
-            <li class="nav-item"><button class="nav-link" :class="{ active: activeTab === 'chart' }" @click="activeTab = 'chart'">Chart</button></li>
-            <li class="nav-item"><button class="nav-link" :class="{ active: activeTab === 'details' }" @click="activeTab = 'details'">Details</button></li>
-          </ul>
+      
+      <template v-else>
 
-          <div v-if="activeTab === 'chart'" class="comparison-table-container">
-            <h5 class="text-white">Monthly cost comparison (USD)</h5>
-            <template v-if="compareMode === 'provider'">
-              <div v-for="item in currentRows" :key="item.label" class="comparison-bar-row">
-                <div class="d-flex justify-content-between"><strong>{{ item.label }}</strong><span>{{ money(item.result.totalMonthlyCost) }}</span></div>
-                <div class="comparison-bar-track"><div class="comparison-bar-fill" :style="{ width: item.result.complete ? `${100 * item.result.totalMonthlyCost / Math.max(1, ...currentRows.map(r => r.result.totalMonthlyCost ?? 0))}%` : '0%' }"></div></div>
-              </div>
-            </template>
-            <template v-else>
-              <div v-for="item in currentRows" :key="item.label" class="mb-3">
-                <strong>{{ item.label }}</strong>
-                <div v-for="(result, index) in [item.resultA, item.resultB]" :key="index" class="comparison-bar-row">
-                  <div class="d-flex justify-content-between"><span>Scenario {{ index === 0 ? 'A' : 'B' }}</span><span>{{ money(result.totalMonthlyCost) }}</span></div>
-                  <div class="comparison-bar-track"><div class="comparison-bar-fill" :style="{ width: result.complete ? `${100 * result.totalMonthlyCost / Math.max(1, ...currentRows.flatMap(r => [r.resultA.totalMonthlyCost ?? 0, r.resultB.totalMonthlyCost ?? 0]))}%` : '0%' }"></div></div>
-                </div>
-              </div>
-            </template>
-            <p class="text-white-50 small mb-0">Bars show total calculated monthly charges for complete results only. Missing costs are not treated as zero.</p>
-          </div>
+        <!-- Comparison tabs -->
+        <div class="comparison-container">
+          <div class="tabs-wrapper">
+            
+            <ul class="nav nav-tabs">
+              <li class="nav-item"><button class="nav-link" :class="{ active: activeTab === 'details' }" @click="activeTab = 'details'">Details</button></li>
+              <li class="nav-item"><button class="nav-link" :class="{ active: activeTab === 'chart' }" @click="activeTab = 'chart'">Chart</button></li>
+            </ul>
 
-          <div v-else class="comparison-table-container">
-            <template v-if="compareMode === 'provider'">
-              <div class="table-responsive">
-                <table class="table comparison-table">
-                  <thead><tr><th>Metric</th><th>{{ providerA }}</th><th>{{ providerB }}</th></tr></thead>
-                  <tbody>
-                    <tr><th>Complete</th><td>{{ providerResultA.complete ? 'Yes' : 'No' }}</td><td>{{ providerResultB.complete ? 'Yes' : 'No' }}</td></tr>
-                    <tr><th>Total monthly cost</th><td>{{ money(providerResultA.totalMonthlyCost) }}</td><td>{{ money(providerResultB.totalMonthlyCost) }}</td></tr>
-                    <tr><th>Difference (B − A)</th><td colspan="2">{{ money(difference(providerResultA.totalMonthlyCost, providerResultB.totalMonthlyCost)) }}</td></tr>
-                  </tbody>
-                </table>
+            <!-- Chart tab -->
+            <div v-if="activeTab === 'chart'" class="comparison-table-container">
+              
+              <h5 class="text-white">Monthly cost comparison (USD)</h5>
+              <div v-if="!compareChartRecords.length" class="text-white-50 py-3">
+                No complete scenario evaluations to chart. Check the workload filters and usage quantities.
               </div>
-              <div class="comparison-kpi-container">
-                <div v-for="item in currentRows" :key="item.label" class="pricing-card">
-                  <h5 class="pricing-card-title">{{ item.label }}</h5>
-                  <div class="pricing-card-price">{{ money(item.result.totalMonthlyCost) }}</div>
-                  <div class="pricing-card-price-unit">per month</div>
-                  <p v-for="issue in item.result.issues" :key="issue" class="text-warning small mt-2">{{ issue }}</p>
-                  <div v-for="component in item.result.components" :key="component.componentIndex" class="pricing-card-meta d-block">
-                    <strong>{{ component.skuName }}</strong>
-                    <div>{{ component.ServiceCategory }} / {{ component.PriceComponent }}</div>
-                    <div>{{ component.PricingUnit }} · {{ component.region || 'Unknown region' }}</div>
-                    <div>{{ component.vcpu ?? '–' }} vCPU · {{ component.memoryGiB ?? '–' }} GiB RAM</div>
-                    <div>Quantity: {{ component.quantity }} · {{ money(component.monthlyCost) }}/month</div>
-                  </div>
+
+              <template v-else>
+                <MetricChart :records="compareChartRecords" :columns="compareChartColumns" :types="['Bar', 'Pie']"/>
+              </template>
+
+              <p class="text-white-50 small mt-3 mb-0">
+                Only complete evaluations are plotted. Each value is the total calculated monthly cost of all workload components, not the unit price of a single SKU.
+              </p>
+            </div>
+        
+            <!-- Details tab -->
+            <div v-else class="comparison-table-container">
+              
+              <!-- Provider comparison table -->
+              <template v-if="compareMode === 'provider'">
+                <div class="table-responsive">
+                  <table class="table comparison-table">
+                    
+                    <thead>
+                      <tr>
+                        <th>Metric</th>
+                        <th>{{ providerA }}</th>
+                        <th>{{ providerB }}</th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      <tr>
+                        <th>Complete</th>
+                        <td>{{ providerResultA.complete ? 'Yes' : 'No' }}</td>
+                        <td>{{ providerResultB.complete ? 'Yes' : 'No' }}</td>
+                      </tr>
+
+                      <tr>
+                        <th>Total monthly cost</th>
+                        <td>{{ money(providerResultA.totalMonthlyCost) }}</td>
+                        <td>{{ money(providerResultB.totalMonthlyCost) }}</td>
+                      </tr>
+
+                      <tr>
+                        <th>Difference (B − A)</th>
+                        <td colspan="2">{{ money(difference(providerResultA.totalMonthlyCost, providerResultB.totalMonthlyCost)) }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
-              </div>
-            </template>
-            <template v-else>
-              <div class="table-responsive">
-                <table class="table comparison-table">
-                  <thead><tr><th>Provider</th><th>Scenario A</th><th>Scenario B</th><th>Difference (B − A)</th></tr></thead>
-                  <tbody>
-                    <tr v-for="item in currentRows" :key="item.label">
-                      <th>{{ item.label }}</th>
-                      <td>{{ money(item.resultA.totalMonthlyCost) }}</td>
-                      <td>{{ money(item.resultB.totalMonthlyCost) }}</td>
-                      <td>{{ money(difference(item.resultA.totalMonthlyCost, item.resultB.totalMonthlyCost)) }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-              <div v-for="item in currentRows" :key="item.label" class="mt-4">
-                <h5 class="text-white">{{ item.label }}</h5>
-                <div class="comparison-kpi-container">
-                  <div v-for="(result, index) in [item.resultA, item.resultB]" :key="index" class="pricing-card">
-                    <h6 class="pricing-card-title">Scenario {{ index === 0 ? 'A' : 'B' }} — {{ result.scenarioName }}</h6>
-                    <div class="pricing-card-price">{{ money(result.totalMonthlyCost) }}</div>
-                    <p v-for="issue in result.issues" :key="issue" class="text-warning small mt-2">{{ issue }}</p>
-                    <div v-for="component in result.components" :key="component.componentIndex" class="pricing-card-meta d-block">
-                      <strong>{{ component.skuName }}</strong>
-                      <div>{{ component.PriceComponent }} · {{ component.PricingUnit }} · {{ component.region }}</div>
-                      <div>Quantity: {{ component.quantity }} · {{ money(component.monthlyCost) }}/month</div>
-                    </div>
-                  </div>
+              </template>
+
+              <!-- Scenario comparison table -->
+              <template v-else>
+                <div class="table-responsive">
+                  <table class="table comparison-table">
+                    <thead>
+                      <tr>
+                        <th>Provider</th>
+                        <th>Scenario A</th>
+                        <th>Scenario B</th>
+                        <th>Difference (B − A)</th>
+                      </tr>
+                    </thead>
+                    
+                    <tbody>
+                      <tr v-for="item in currentRows" :key="item.label">
+                        <th>{{ item.label }}</th>
+                        <td>{{ money(item.resultA.totalMonthlyCost) }}</td>
+                        <td>{{ money(item.resultB.totalMonthlyCost) }}</td>
+                        <td>{{ money(difference(item.resultA.totalMonthlyCost, item.resultB.totalMonthlyCost)) }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
-              </div>
-            </template>
+              </template>
+            </div>
           </div>
         </div>
-      </div>
+
+        <section v-if="activeTab === 'details'" class="comparison-kpi-section mt-4">
+
+          <!-- Provider KPI cards -->
+          <template v-if="compareMode === 'provider'">
+            <div class="comparison-kpi-container">
+              <div v-for="item in currentRows" :key="item.label" class="pricing-card">
+                <h5 class="pricing-card-title">
+                  {{ item.label }}
+                </h5>
+
+                <div class="pricing-card-price">
+                  {{ money(item.result.totalMonthlyCost) }}
+                </div>
+
+                <div class="pricing-card-price-unit">
+                  per month
+                </div>
+
+                <p v-for="issue in item.result.issues" :key="issue" class="text-warning small mt-2">
+                  {{ issue }}
+                </p>
+
+                <div v-for="component in item.result.components" :key="component.componentIndex" class="pricing-card-meta d-block">
+                  <strong>{{ component.skuName }}</strong>
+
+                  <div>
+                    {{ component.ServiceCategory }} / {{ component.PriceComponent }}
+                  </div>
+
+                  <div>
+                    {{ component.PricingUnit }} · {{ component.region || 'Unknown region' }}
+                  </div>
+
+                  <div>
+                    {{ component.vcpu ?? '–' }} vCPU · {{ component.memoryGiB ?? '–' }} GiB RAM
+                  </div>
+
+                  <div>
+                    Quantity: {{ component.quantity }} · {{ money(component.monthlyCost) }}/month
+                  </div>
+
+                </div>
+
+              </div>
+            </div>
+          </template>
+
+          <!-- Scenario KPI cards -->
+          <template v-else>
+            <div v-for="item in currentRows" :key="item.label" class="mb-4">
+              <h5 class="text-white">
+                {{ item.label }}
+              </h5>
+
+              <div class="comparison-kpi-container">
+                <div v-for="(result, index) in [ item.resultA, item.resultB ]" :key="index" class="pricing-card">
+                  <h6 class="pricing-card-title">
+                    Scenario {{ index === 0 ? 'A' : 'B' }} — {{ result.scenarioName }}
+                  </h6>
+
+                  <div class="pricing-card-price">
+                    {{ money(result.totalMonthlyCost) }}
+                  </div>
+
+                  <p v-for="issue in result.issues" :key="issue" class="text-warning small mt-2">
+                    {{ issue }}
+                  </p>
+
+                  <div v-for="component in result.components" :key="component.componentIndex" class="pricing-card-meta d-block">
+                    <strong>{{ component.skuName }}</strong>
+
+                    <div>
+                      {{ component.PriceComponent }} · {{ component.PricingUnit }} · {{ component.region }}
+                    </div>
+
+                    <div>
+                      Quantity: {{ component.quantity }} · {{ money(component.monthlyCost) }}/month
+                    </div>
+
+                  </div>
+
+                </div>
+              </div>
+            </div>
+          </template>
+
+        </section>
+      </template>
     </template>
   </div>
 </template>

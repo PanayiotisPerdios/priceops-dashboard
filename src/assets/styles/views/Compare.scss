@@ -15,23 +15,23 @@
   gap: .8rem; 
 }
 
-.scenario-form-grid 
+.scenario-form-grid, 
 .form-label { 
   color: #9ca3af; 
   font-size: .75rem; 
   margin-bottom: .25rem; 
 }
 
-.scenario-form-grid 
+.scenario-form-grid, 
 .form-control, 
-.scenario-form-grid 
+.scenario-form-grid, 
 .form-select { 
   background: #1a1f29; 
   color: #e5e7ea; 
   border: 1px solid #353c4b; 
 }
 
-.scenario-form-grid 
+.scenario-form-grid, 
 .form-control:disabled { 
   opacity: .7; 
 }
@@ -155,6 +155,21 @@
   min-height: 420px;
 }
 
+
+.comparison-kpi-section {
+  width: 100%;
+  max-width: 2200px;
+  margin: 1.5rem auto 3rem;
+  padding: 0 2rem;
+  box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+  .comparison-kpi-section {
+    padding: 0 1rem;
+  }
+}
+
 .pricing-card:hover,
 .comparison-kpi-card:hover,
 .comparison-table-container:hover {
@@ -178,25 +193,29 @@
   padding: 0.9rem;
   background: transparent !important;
 }
+
 .comparison-table thead th {
   color: #9ca3af;
   font-weight: 600;
   border-bottom: 1px solid #2a2f3a;
 }
+
 .comparison-table tbody td {
   color: #9ca3af;
 }
+
 .comparison-table tbody td:hover {
   background: rgba(184, 190, 181, 0.121) !important;
 
 }
+
 .comparison-table tbody th {
   color: #6366f1;
 }
 
 .pricing-card {
   border-radius: 12px;
-  background: transparent !important;
+  background: #11141a;
   border: 1px solid rgba(99, 102, 241, 0.25);
   padding: 1rem;
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);

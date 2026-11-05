@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cloudpricingops.example/schemas/optimization-request.schema.json",
+  "title": "CloudPricingOps Optimization Request",
+  "description": "Defines the workload requirements submitted by the Visualization Interface to the Optimization Engine. This initial contract supports a single Compute instance workload.",
+  "type": "object",
+  "properties": {
+    "regionGroup": {
+      "type": "string",
+      "title": "Region group",
+      "description": "Geographical region group in which the workload should be deployed. Values correspond to RegionGroup in the canonical pricing schema.",
+      "enum": [ "North America", "South America", "Europe", "Asia Pacific", "Middle East", "Africa", "Global" ]
+    },
+    "operatingSystem": {
+      "type": "string",
+      "title": "Operating system",
+      "description": "Required operating system for the workload. The value is matched against the OperatingSystem field of the pricing catalog.",
+      "minLength": 1
+    },
+    "pricingCategory": {
+      "type": "string",
+      "title": "Pricing category",
+      "description": "Pricing model to consider when selecting eligible SKUs.",
+      "enum": [ "Standard", "Dynamic", "Committed", "Other" ]
+    },
+    "hoursPerMonth": {
+      "type": "number",
+      "title": "Hours per month",
+      "description": "Expected monthly operating hours used for estimating the workload cost.",
+      "exclusiveMinimum": 0,
+      "maximum": 744
+    },
+    "components": {
+      "type": "array",
+      "title": "Workload components",
+      "description": "Components defining the workload to optimize. The initial mock contract supports exactly one Compute instance.",
+      "minItems": 1,
+      "maxItems": 1,
+      "items": {
+        "type": "object",
+        "properties": {
+          "ServiceCategory": {
+            "type": "string",
+            "title": "Service category",
+            "description": "Canonical ServiceCategory of the requested cloud service.",
+            "const": "Compute"
+          },
+          "PriceComponent": {
+            "type": "string",
+            "title": "Price component",
+            "description": "Canonical PriceComponent used to identify the charge being compared.",
+            "const": "Instance"
+          },
+          "PricingUnit": {
+            "type": "string",
+            "title": "Pricing unit",
+            "description": "Canonical pricing unit used for this workload.",
+            "const": "Hour"
+          },
+          "quantity": {
+            "type": "integer",
+            "title": "Quantity",
+            "description": "Number of identical instances required by the workload.",
+            "minimum": 1
+          },
+          "minVCpu": {
+            "type": "number",
+            "title": "Minimum vCPU",
+            "description": "Minimum number of vCPUs required per instance.",
+            "exclusiveMinimum": 0
+          },
+          "minMemoryGiB": {
+            "type": "number",
+            "title": "Minimum memory (GiB)",
+            "description": "Minimum RAM capacity required per instance, measured in GiB.",
+            "exclusiveMinimum": 0
+          }
+        },
+        "required": [ "ServiceCategory", "PriceComponent", "PricingUnit", "quantity", "minVCpu", "minMemoryGiB" ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [ "regionGroup", "operatingSystem", "pricingCategory", "hoursPerMonth", "components" ],
+  "additionalProperties": false
+}

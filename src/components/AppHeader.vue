@@ -9,6 +9,7 @@ const navItems = [
   { to: '/explore', label: 'Explore Data', icon: 'explore' },
   { to: '/compare', label: 'Compare', icon: 'compare' },
   { to: '/evaluation', label: 'Evaluate Policies', icon: 'evaluate' },
+  { to: '/optimization', label: 'Optimization Recommendations', icon: 'optimize'}
 ]
 
 function isActive(path) {
@@ -18,6 +19,7 @@ function isActive(path) {
 const lastUpdated = computed(() =>
   new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 )
+
 </script>
 
 <template>
@@ -29,11 +31,14 @@ const lastUpdated = computed(() =>
 
     <div class="sidebar-nav">
       <router-link v-for="item in navItems" :key="item.to" :to="item.to" class="sidebar-nav-item" :class="{ active: isActive(item.to) }" :title="item.label">
+
+        <!-- Data Exploration -->
         <svg v-if="item.icon === 'explore'" class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="11" cy="11" r="7" />
           <line x1="21" y1="21" x2="16.65" y2="16.65" />
         </svg>
 
+        <!-- Compare -->
         <svg v-else-if="item.icon === 'compare'" class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
           <path d="M8 3v18" />
           <path d="M16 3v18" />
@@ -43,7 +48,8 @@ const lastUpdated = computed(() =>
           <path d="M17 16h4" />
         </svg>
 
-        <svg v-else class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+        <!-- Evaluation -->
+        <svg v-else-if="item.icon === 'evaluate'" class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
           <line x1="5" y1="21" x2="5" y2="13" />
           <line x1="5" y1="9" x2="5" y2="3" />
           <line x1="12" y1="21" x2="12" y2="11" />
@@ -53,6 +59,13 @@ const lastUpdated = computed(() =>
           <circle cx="5" cy="11" r="2" />
           <circle cx="12" cy="9" r="2" />
           <circle cx="19" cy="13" r="2" />
+        </svg>
+
+        <!-- Optimization -->
+        <svg v-else-if="item.icon === 'optimize'" class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9" />
+          <circle cx="12" cy="12" r="5" />
+          <circle cx="12" cy="12" r="1" />
         </svg>
 
         <span class="sidebar-nav-indicator" />

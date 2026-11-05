@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cloudpricingops.example/schemas/optimization-response.schema.json",
+  "title": "CloudPricingOps Optimization Response",
+  "description": "Defines the optimization recommendations returned by the Decision-Making and Optimization Engine to the Visualization Interface. Scores and costs are produced by the engine, not calculated by the interface.",
+  "type": "object",
+  "properties": {
+    "recommendations": {
+      "type": "array",
+      "title": "Optimization recommendations",
+      "description": "List of recommended cloud SKUs satisfying the submitted workload requirements.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "sku_id": {
+            "type": "string",
+            "title": "SKU identifier",
+            "description": "Identifier of the recommended SKU. Corresponds to SkuId in the canonical pricing catalog. Must be interpreted together with provider.",
+            "minLength": 1
+          },
+          "provider": {
+            "type": "string",
+            "title": "Cloud provider",
+            "description": "Provider of the recommended SKU. Corresponds to ServiceProviderName in the canonical pricing catalog.",
+            "enum": [ "AWS", "Azure", "GCP" ]
+          },
+          "monthly_cost": {
+            "type": "number",
+            "title": "Estimated monthly cost (USD)",
+            "description": "Estimated total monthly cost in USD for the requested workload configuration, as calculated by the Optimization Engine.",
+            "minimum": 0
+          },
+          "score": {
+            "type": "number",
+            "title": "Optimization score",
+            "description": "Normalized optimization score between 0 and 1. Higher scores indicate better recommendations. This interpretation is provisional and must be agreed with the Optimization Engine.",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "rationale": {
+            "type": "string",
+            "title": "Recommendation rationale",
+            "description": "Human-readable explanation of why the Optimization Engine recommended this SKU.",
+            "minLength": 1
+          }
+        },
+        "required": [ "sku_id", "provider", "monthly_cost", "score", "rationale"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [ "recommendations" ],
+  "additionalProperties": false
+}

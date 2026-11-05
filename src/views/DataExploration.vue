@@ -81,13 +81,30 @@ const filteredRecords = computed(() => {
 
   const query = search.value.trim().toLowerCase();
   return records.value.filter(record => {
-    if (selections.some(([value, key]) => value != null && record[key] !== value)) return false;
-    if (minVcpu.value !== null && minVcpu.value !== '' && (record.VCpu == null || record.VCpu < Number(minVcpu.value))) return false;
-    if (minMemory.value !== null && minMemory.value !== '' && (record.MemoryGiB == null || record.MemoryGiB < Number(minMemory.value))) return false;
-    if (maxPrice.value !== null && maxPrice.value !== '' && (record.ListUnitPrice == null || record.ListUnitPrice > Number(maxPrice.value))) return false;
-    if (onlyKnownSpecs.value && (record.VCpu == null || record.MemoryGiB == null)) return false;
+    if (selections.some(([value, key]) => value != null && record[key] !== value)){
+      return false;
+    }
+
+    if (minVcpu.value !== null && minVcpu.value !== '' && (record.VCpu == null || record.VCpu < Number(minVcpu.value))) {
+      return false;
+    }
+
+    if (minMemory.value !== null && minMemory.value !== '' && (record.MemoryGiB == null || record.MemoryGiB < Number(minMemory.value))){
+      return false;
+    } 
+
+    if (maxPrice.value !== null && maxPrice.value !== '' && (record.ListUnitPrice == null || record.ListUnitPrice > Number(maxPrice.value))){
+      return false;
+    } 
+
+    if (onlyKnownSpecs.value && (record.VCpu == null || record.MemoryGiB == null)){
+      return false;
+    }
+     
     if (query && ![record.SkuName, record.SkuId, record.SkuPriceId, record.SkuMeter, record.ServiceName, record.ServiceSubcategory, record.RegionName, record.ChargeDescription]
-      .some(value => String(value ?? '').toLowerCase().includes(query))) return false;
+      .some(value => String(value ?? '').toLowerCase().includes(query))){
+        return false;
+      } 
     return true;
   });
 });
@@ -155,18 +172,6 @@ const rangeStart = computed(() => sortedRecords.value.length ? (page.value - 1) 
  
 const rangeEnd = computed(() => Math.min(page.value * TABLE_PAGE_SIZE, sortedRecords.value.length));
 
-/*
-function qualityClass(score) {
-  if (score >= 90) {
-    return 'q-high';
-  }
-  if (score >= 70) {
-    return 'q-mid';
-  }
-  return 'q-low';
-}
-*/
-
 const providerStats = computed(() => {
   if (!pricingUnit.value) {
     return [];
@@ -192,22 +197,29 @@ const providerStats = computed(() => {
   });
 });
 
-const chartColumns = computed(() => CHART_COLUMNS
-  .filter(c => !['data_quality_score', 'price_per_vcpu_hr'].includes(c.key))
-  .map(c => c.key === 'effective_price_hr' ? { ...c, label: 'List unit price' } : c));
+const chartColumns = computed(() => {
+  return CHART_COLUMNS.map(column => ({
+    id: column.id,
+    name: column.name
+  }));
+});
+
 
 function toChartRecord(record, index) {
   return {
-    id: `${record.ServiceProviderName}-${record.SkuId}-${record.RegionId}-${record.PricingUnit}-${index}`,
+    id: `${record.ServiceProviderName}|${record.SkuId}|${record.SkuPriceId ?? ''}|${record.RegionId ?? ''}|${index}`,
     name: record.SkuName || record.SkuId || record.ServiceName,
-    subtitle: `${record.ServiceProviderName} · ${record.RegionId} · ${record.PricingUnit}`,
+    subtitle: `${record.ServiceProviderName} · ${record.RegionId ?? 'Unknown region'} · ${record.PricingUnit}`,
     color: colorFor(record.ServiceProviderName),
-    vcpu_count: record.VCpu,
-    memory_gb: record.MemoryGiB,
-    effective_price_hr: record.ListUnitPrice,
+    VCpu: record.VCpu,
+    MemoryGiB: record.MemoryGiB,
+    ListUnitPrice: record.ListUnitPrice
   };
 }
-const chartRecords = computed(() => sortedRecords.value.slice(0, CHART_LIMIT).map(toChartRecord));
+
+const chartRecords = computed(() => {
+  return sortedRecords.value.slice(0, CHART_LIMIT).map(toChartRecord);
+});
 
 // RESETS
 function onCategoryChange() { 
@@ -274,7 +286,7 @@ watch(sourceName, resetFilters);
     <div class="d-flex justify-content-center align-items-end gap-3 flex-wrap">
 
       <div class="data-ex-form-cont">
-        <label class="form-label" style="color: white">Provider</label>
+        <label class="form-label">Provider</label>
         <select class="form-select w-100 custom-form-select" v-model="provider" @change="region = null">
           <option :value="null" disabled>Any provider</option>
           <option v-for="p in options.providers" :key="p" :value="p">{{ p }}</option>
@@ -282,7 +294,7 @@ watch(sourceName, resetFilters);
       </div>
   
       <div class="data-ex-form-cont">
-        <label class="form-label" style="color: white">Category</label>
+        <label class="form-label">Category</label>
         <select class="form-select w-100 custom-form-select" v-model="category" @change="onCategoryChange">
           <option :value="null">Any category</option>
           <option v-for="c in options.categories" :key="c" :value="c">{{ c }}</option>
@@ -290,7 +302,7 @@ watch(sourceName, resetFilters);
       </div>
 
       <div class="data-ex-form-cont">
-        <label class="form-label" style="color: white">Subcategory</label>
+        <label class="form-label">Subcategory</label>
         <select class="form-select w-100 custom-form-select" v-model="subcategory">
           <option :value="null">Any subcategory</option>
           <option v-for="s in subcategoryOptions" :key="s" :value="s">{{ s }}</option>
@@ -298,7 +310,7 @@ watch(sourceName, resetFilters);
       </div>
 
       <div class="data-ex-form-cont">
-        <label class="form-label" style="color: white">Service</label>
+        <label class="form-label">Service</label>
         <select class="form-select w-100 custom-form-select" v-model="service">
           <option :value="null">Any service</option>
           <option v-for="s in serviceOptions" :key="s" :value="s">{{ s }}</option>
@@ -306,7 +318,7 @@ watch(sourceName, resetFilters);
       </div>
   
       <div class="data-ex-form-cont">
-        <label class="form-label" style="color: white">Region</label>
+        <label class="form-label">Region</label>
         <select class="form-select w-100 custom-form-select" v-model="region">
           <option :value="null">Any region</option>
           <option v-for="r in regionOptions" :key="r" :value="r">{{ r }}</option>
@@ -314,7 +326,7 @@ watch(sourceName, resetFilters);
       </div>
 
       <div class="data-ex-form-cont">
-        <label class="form-label" style="color: white">Pricing unit</label>
+        <label class="form-label">Pricing unit</label>
         <select class="form-select w-100 custom-form-select" v-model="pricingUnit">
           <option :value="null">Any unit</option>
           <option v-for="u in options.pricingUnits" :key="u" :value="u">{{ u }}</option>
@@ -322,18 +334,15 @@ watch(sourceName, resetFilters);
       </div>
 
       <div class="data-ex-form-cont">
-        <label class="form-label" style="color: white">Search SKU / service</label>
+        <label class="form-label">Search SKU / service</label>
         <input type="text" class="form-control custom-form-select" v-model="search" placeholder="SKU, ID, service…" />
       </div>
 
       <div class="d-flex justify-content-center align-items-end gap-3 flex-wrap">  
         <button type="button" class="btn btn-outline-light" @click="resetFilters">Reset</button>
-        <div>
-          <label class="form-label" style="color: white">Export</label>
-          <div class="data-ex-form-cont d-flex gap-3">
-            <button type="button" class="btn btn-outline-primary" :disabled="!filteredRecords.length" @click="exportCSV">CSV</button>
-            <button type="button" class="btn btn-outline-primary" :disabled="!filteredRecords.length" @click="exportJSON">JSON</button>
-          </div>
+        <div class="d-flex gap-2 justify-content-end">
+          <button type="button" class="btn btn-outline-primary" :disabled="!filteredRecords.length" @click="exportCSV">Export CSV</button>
+          <button type="button" class="btn btn-outline-primary" :disabled="!filteredRecords.length" @click="exportJSON">Export JSON</button>
         </div>
       </div>
 
@@ -347,7 +356,7 @@ watch(sourceName, resetFilters);
       <div v-show="showAdvancedFilters" id="advanced-pricing-filters" class="advanced-filters-panel">
 
         <div class="data-ex-form-cont">
-          <label class="form-label" style="color: white">Area</label>
+          <label class="form-label">Area</label>
           <select class="form-select w-100 custom-form-select" v-model="regionGroup" @change="region = null">
             <option :value="null">Any area</option>
             <option v-for="g in options.regionGroups" :key="g" :value="g">{{ g }}</option>
@@ -355,7 +364,7 @@ watch(sourceName, resetFilters);
         </div>
 
         <div class="data-ex-form-cont">
-          <label class="form-label" style="color: white">Region name</label>
+          <label class="form-label">Region name</label>
           <select class="form-select w-100 custom-form-select" v-model="regionName">
             <option :value="null">Any region name</option>
             <option v-for="r in regionNameOptions" :key="r" :value="r">{{ r }}</option>
@@ -363,7 +372,7 @@ watch(sourceName, resetFilters);
         </div>
 
         <div class="data-ex-form-cont">
-          <label class="form-label" style="color: white">SKU meter</label>
+          <label class="form-label">SKU meter</label>
           <select class="form-select w-100 custom-form-select" v-model="skuMeter">
             <option :value="null">Any meter</option>
             <option v-for="m in (options.skuMeters ?? [])" :key="m" :value="m">{{ m }}</option>
@@ -371,7 +380,7 @@ watch(sourceName, resetFilters);
         </div>
 
         <div class="data-ex-form-cont">
-          <label class="form-label" style="color: white">Pricing currency</label>
+          <label class="form-label">Pricing currency</label>
           <select class="form-select w-100 custom-form-select" v-model="pricingCurrency">
             <option :value="null">Any currency</option>
             <option v-for="c in (options.pricingCurrencies ?? [])" :key="c" :value="c">{{ c }}</option>
@@ -379,7 +388,7 @@ watch(sourceName, resetFilters);
         </div>
 
         <div class="data-ex-form-cont">
-          <label class="form-label" style="color: white">Operating System</label>
+          <label class="form-label">Operating System</label>
           <select class="form-select w-100 custom-form-select" v-model="operatingSystem">
             <option :value="null">Any</option>
             <option v-for="os in options.operatingSystems" :key="os" :value="os">{{ os }}</option>
@@ -387,7 +396,7 @@ watch(sourceName, resetFilters);
         </div>
 
         <div class="data-ex-form-cont">
-          <label class="form-label" style="color: white">DB engine</label>
+          <label class="form-label">DB engine</label>
           <select class="form-select w-100 custom-form-select" v-model="dbEngine" :disabled="!engineOptions.length">
             <option :value="null">Any engine</option>
             <option v-for="e in engineOptions" :key="e" :value="e">{{ e }}</option>
@@ -395,7 +404,7 @@ watch(sourceName, resetFilters);
         </div>
 
         <div class="data-ex-form-cont">
-          <label class="form-label" style="color: white">Pricing category</label>
+          <label class="form-label">Pricing category</label>
           <select class="form-select w-100 custom-form-select" v-model="pricingModel">
             <option :value="null">Any pricing category</option>
             <option v-for="m in options.pricingModels" :key="m" :value="m">{{ m }}</option>
@@ -403,7 +412,7 @@ watch(sourceName, resetFilters);
         </div>
 
         <div class="data-ex-form-cont">
-          <label class="form-label" style="color: white">Price component</label>
+          <label class="form-label">Price component</label>
           <select class="form-select w-100 custom-form-select" v-model="priceComponent">
             <option :value="null">Any component</option>
             <option v-for="c in options.priceComponents" :key="c" :value="c">{{ c }}</option>
@@ -411,7 +420,7 @@ watch(sourceName, resetFilters);
         </div>
 
         <div class="data-ex-form-cont">
-          <label class="form-label" style="color: white">Storage class</label>
+          <label class="form-label">Storage class</label>
           <select class="form-select w-100 custom-form-select" v-model="storageClass">
             <option :value="null">Any storage class</option>
             <option v-for="s in options.storageClasses" :key="s" :value="s">{{ s }}</option>
@@ -419,7 +428,7 @@ watch(sourceName, resetFilters);
         </div>
 
         <div class="data-ex-form-cont">
-          <label class="form-label" style="color: white">Service tier</label>
+          <label class="form-label">Service tier</label>
           <select class="form-select w-100 custom-form-select" v-model="serviceTier">
             <option :value="null">Any tier</option>
             <option v-for="t in options.serviceTiers" :key="t" :value="t">{{ t }}</option>
@@ -427,7 +436,7 @@ watch(sourceName, resetFilters);
         </div>
 
         <div class="data-ex-form-cont">
-          <label class="form-label" style="color: white">Commitment term</label>
+          <label class="form-label">Commitment term</label>
           <select class="form-select w-100 custom-form-select" v-model="commitmentTerm">
             <option :value="null">Any term</option>
             <option v-for="t in options.commitmentTerms" :key="t" :value="t">{{ t }}</option>
@@ -435,7 +444,7 @@ watch(sourceName, resetFilters);
         </div>
 
         <div class="data-ex-form-cont">
-          <label class="form-label" style="color: white">Commitment type</label>
+          <label class="form-label">Commitment type</label>
           <select class="form-select w-100 custom-form-select" v-model="commitmentType">
             <option :value="null">Any commitment</option>
             <option v-for="t in options.commitmentTypes" :key="t" :value="t">{{ t }}</option>
@@ -443,7 +452,7 @@ watch(sourceName, resetFilters);
         </div>
 
         <div class="data-ex-form-cont">
-          <label class="form-label" style="color: white">Tenancy</label>
+          <label class="form-label">Tenancy</label>
           <select class="form-select w-100 custom-form-select" v-model="tenancy">
             <option :value="null">Any tenancy</option>
             <option v-for="t in options.tenancies" :key="t" :value="t">{{ t }}</option>
@@ -451,7 +460,7 @@ watch(sourceName, resetFilters);
         </div>
 
         <div class="data-ex-form-cont">
-          <label class="form-label" style="color: white">Deployment</label>
+          <label class="form-label">Deployment</label>
           <select class="form-select w-100 custom-form-select" v-model="deploymentOption">
             <option :value="null">Any deployment</option>
             <option v-for="d in options.deploymentOptions" :key="d" :value="d">{{ d }}</option>
@@ -459,17 +468,17 @@ watch(sourceName, resetFilters);
         </div>
 
         <div class="data-ex-form-cont">
-          <label class="form-label" style="color: white">Min vCPU</label>
+          <label class="form-label">Min vCPU</label>
           <input type="number" min="0" class="form-control custom-form-select" v-model="minVcpu" placeholder="Any" />
         </div>
 
         <div class="data-ex-form-cont">
-          <label class="form-label" style="color: white">Min Memory (GiB)</label>
+          <label class="form-label">Min Memory (GiB)</label>
           <input type="number" min="0" class="form-control custom-form-select" v-model="minMemory" placeholder="Any" />
         </div>
 
         <div class="data-ex-form-cont">
-          <label class="form-label" style="color: white">Max list unit price</label>
+          <label class="form-label">Max list unit price</label>
           <input type="number" min="0" step="any" class="form-control custom-form-select" v-model="maxPrice" placeholder="Any" />
         </div>
 
