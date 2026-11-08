@@ -71,11 +71,21 @@ export function validateCrossFields(row) {
     }
 
     const hasRegionId = row.RegionId != null && row.RegionId !== '';
-
     const hasRegionName = row.RegionName != null && row.RegionName !== '';
 
-    if (hasRegionId !== hasRegionName) {
-        errors.push('RegionId and RegionName must either both be provided or both be empty');
+    if (hasRegionName && !hasRegionId) {
+        errors.push('RegionName cannot be provided without RegionId');
+    }
+
+    const hasTerm = row.CommitmentTerm != null && row.CommitmentTerm !== '';
+    const hasType = row.CommitmentType != null && row.CommitmentType !== '';
+
+    if (row.PricingCategory === 'Committed' && (!hasTerm || !hasType)) {
+        errors.push('Committed prices require CommitmentTerm and CommitmentType');
+    }
+
+    if (row.PricingCategory !== 'Committed' && (hasTerm || hasType)) {
+        errors.push('CommitmentTerm and CommitmentType are only allowed on Committed prices');
     }
 
     const start = row.TierStart;
@@ -93,7 +103,13 @@ export function csvToObjects(text) {
         header: true,
         delimiter: ',',
         skipEmptyLines: true,
-        transformHeader: header => header.trim()
+        transformHeader: header => header.trim(),
+        transform: value => {
+            if (typeof value === 'string') {
+                return value.trim();
+            }
+            return value;
+        }
     });
 }
 
@@ -184,9 +200,43 @@ export function validateRows(rows, schema){
     return { validRows, rejectedRows };
 }
 
+function tally(list, pick) {
+    const counts = {};
+
+    for (const item of list) {
+        let key = pick(item);
+
+        if (key === null || key === undefined) {
+            key = '(empty)';
+        }
+
+        if (counts[key] === undefined) {
+            counts[key] = 0;
+        }
+
+        counts[key] += 1;
+    }
+
+    return counts;
+}
+
 function createImportResult(total, validRows, rejectedRows) {
     const records = validRows.map(mapRows);
-    return { records, report: {total, loaded: records.length, rejected: rejectedRows.length, errors: rejectedRows.flatMap(item => item.errors.map(error => `Row ${item.row}: ${error}`)),rejectedRows}};
+
+    return {
+        records,
+        report: {
+            total,
+            loaded: records.length,
+            rejected: rejectedRows.length,
+            errors: rejectedRows.flatMap(item =>
+                item.errors.map(error => `Row ${item.row}: ${error}`)
+            ),
+            rejectedRows,
+            byProvider: tally(records, record => record.ServiceProviderName),
+            byUnit: tally(records, record => record.PricingUnit)
+        }
+    };
 }
 
 export async function parseCSVRows(text){
@@ -257,30 +307,52 @@ async function getJsonValidator() {
 export async function parseJSONRows(text) {
     const rows = JSON.parse(text);
 
-    if (!Array.isArray(rows)) { throw new Error('JSON must contain an array of pricing records');}
+    if (!Array.isArray(rows)) { 
+        throw new Error('JSON must contain an array of pricing records');
+    }
 
     const validateJson = await getJsonValidator();
+    const errorsByRow = new Map();
+
+    if (!validateJson(rows)) {
+        const schemaErrors = validateJson.errors || [];
+
+        for (const error of schemaErrors) {
+            const parts = error.instancePath.split('/');   // '/12/ListUnitPrice' -> ['', '12', 'ListUnitPrice']
+
+            if (parts.length < 2 || parts[1] === '') {
+                throw new Error(`JSON schema error: ${error.message}`);
+            }
+
+            const rowIndex = Number(parts[1]);
+
+            if (!errorsByRow.has(rowIndex)) {
+                errorsByRow.set(rowIndex, []);
+            }
+
+            let detail = '';
+            if (error.params && error.params.additionalProperty) {
+                detail = ` (${error.params.additionalProperty})`;
+            }
+
+            const fieldPath = '/' + parts.slice(2).join('/');
+            errorsByRow.get(rowIndex).push(`${fieldPath}: ${error.message}${detail}`);
+        }
+    }
 
     const validRows = [];
     const rejectedRows = [];
 
     for (const [index, row] of rows.entries()) {
-        if (!validateJson([row])) {
-            const errors = (validateJson.errors ?? []).map(error => {
-                const location = error.instancePath || '/';
-                return `${location}: ${error.message}`;
-            }
-        );
-
-            rejectedRows.push({row: index + 1, errors});
-
+        if (errorsByRow.has(index)) {
+            rejectedRows.push({ row: index + 1, errors: errorsByRow.get(index) });
             continue;
         }
 
         const crossFieldErrors = validateCrossFields(row);
 
-        if (crossFieldErrors.length > 0){
-            rejectedRows.push({ row: index + 1, errors: crossFieldErrors })
+        if (crossFieldErrors.length > 0) {
+            rejectedRows.push({ row: index + 1, errors: crossFieldErrors });
             continue;
         }
 

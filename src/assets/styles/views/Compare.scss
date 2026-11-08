@@ -15,23 +15,23 @@
   gap: .8rem; 
 }
 
-.scenario-form-grid, 
+.scenario-form-grid
 .form-label { 
   color: #9ca3af; 
   font-size: .75rem; 
   margin-bottom: .25rem; 
 }
 
-.scenario-form-grid, 
-.form-control, 
-.scenario-form-grid, 
-.form-select { 
-  background: #1a1f29; 
-  color: #e5e7ea; 
-  border: 1px solid #353c4b; 
+.scenario-form-grid {
+  .form-control,
+  .form-select {
+    background-color: #1a1f29;
+    color: #e5e7ea;
+    border: 1px solid #353c4b;
+  }
 }
 
-.scenario-form-grid, 
+.scenario-form-grid
 .form-control:disabled { 
   opacity: .7; 
 }
@@ -170,8 +170,8 @@
   }
 }
 
-.pricing-card:hover,
 .comparison-kpi-card:hover,
+.pricing-card:hover,
 .comparison-table-container:hover {
   transform: translateY(-4px);
   border-color: rgba(99, 102, 241, 0.45);

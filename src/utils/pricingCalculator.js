@@ -1,3 +1,5 @@
+import { usageSpecFor, isMissing } from './usageSpec.js';
+
 const DEFAULT_HOURS_PER_MONTH = 730;
 export const MAX_HOURS_PER_MONTH = 744;
 
@@ -5,6 +7,67 @@ function valid(value) {
     return typeof value === 'number' &&
            Number.isFinite(value) &&
            value >= 0;
+}
+
+export function tierStartOf(row) {
+  if (isMissing(row.TierStart)) {
+    return 0;
+  }
+  return row.TierStart;
+}
+
+export function tierEndOf(row) {
+  if (isMissing(row.TierEnd)) {
+    return Infinity;
+  }
+  return row.TierEnd;
+}
+
+export function isFlatPrice(row) {
+  const startIsZeroOrEmpty = isMissing(row.TierStart) || row.TierStart === 0;
+  return startIsZeroOrEmpty && isMissing(row.TierEnd);
+}
+
+export function billableQuantity(record, usage) {
+  let hours = DEFAULT_HOURS_PER_MONTH;
+
+  if (!isMissing(usage.hoursPerMonth)) {
+    hours = usage.hoursPerMonth;
+  }
+
+  if (!valid(hours) || hours > MAX_HOURS_PER_MONTH) {
+    return null;
+  }
+
+  const spec = usageSpecFor(record.PricingUnit, record.PriceComponent);
+
+  if (spec === null) {
+    return null;
+  }
+
+  let amount = 1;
+
+  if (spec.key !== null) {
+    amount = usage[spec.key];
+
+    if (isMissing(amount) && spec.recordField) {
+      amount = record[spec.recordField];
+    }
+
+    if (isMissing(amount)) {
+      amount = spec.defaultValue;
+    }
+  }
+
+  if (!valid(amount)) {
+    return null;
+  }
+
+  if (spec.perHour) {
+    return hours * amount;
+  }
+
+  return amount;
 }
 
 export function calculateMonthlyCost(record, usage = {}) {
@@ -20,131 +83,24 @@ export function calculateMonthlyCost(record, usage = {}) {
         return null;
     }
 
-    if (record.TierStart != null || record.TierEnd != null){
+    if (!isFlatPrice(record)) {
         return null;
     }
 
-    const hours = usage.hoursPerMonth ?? DEFAULT_HOURS_PER_MONTH 
+    const quantity = billableQuantity(record, usage);
 
-    if (!valid(hours) || hours > MAX_HOURS_PER_MONTH){
+    if (quantity === null) {
         return null;
     }
 
-    const unit = record.PricingUnit;
-    const component = record.PriceComponent;
-    
-    let quantity
-
-    switch (unit){
-        case 'Hour': {
-            if (component === 'Instance'){
-                quantity = hours
-            } else {
-                if(valid(usage.hourlyUnits)){
-                    quantity = hours * usage.hourlyUnits
-                }
-            }
-            break;
-        }
-        
-        case 'Day': {
-            quantity = usage.billableDays;
-            break;
-        }
-
-        case 'Month': {
-            quantity = usage.billableMonths;
-            break;
-        }
-
-        case 'Years':{
-            quantity = usage.billableYears;
-            break
-        }
-
-        case 'vCPU-Hour': {
-            const count = usage.vcpu ?? record.VCpu;
-
-            if (valid(count)) {
-                quantity = hours * count;
-            }
-            break;
-        }
-
-        case 'ACU-Hour': {
-            if (valid(usage.acu)) {
-                quantity = hours * usage.acu;
-            }
-            break;
-        }
-
-        case 'GB-Hour': {
-            let gb;
-
-            if (component === 'RAM') {
-                gb = usage.memoryGB;
-            } else {
-                gb = usage.gbHoursCapacity;
-            }
-
-            if (valid(gb)) {
-                quantity = hours * gb;
-            }
-            break;
-        }
-
-        case 'GB-Month': {
-            if (component === 'Storage') {
-                quantity = usage.storageGBMonths;
-            } else if (component === 'Backup') {
-                quantity = usage.backupGBMonths;
-            } else {
-                quantity = usage.gbMonths;
-            }
-            break;
-        }
-
-        case 'GB': {
-            if (component === 'DataTransfer' || component === 'Network') {
-                quantity = usage.transferGB;
-            } else {
-                quantity = usage.gb;
-            }
-            break;
-        }
-
-        case 'IOPS-Month': {
-            quantity = usage.iopsMonths;
-            break;
-        }
-
-        case 'MBps-Month': {
-            quantity = usage.mbpsMonths;
-            break;
-        }
-
-        case 'Tag-Month': {
-            quantity = usage.tagMonths;
-            break;
-        }
-
-        case 'Request': {
-            quantity = usage.requests;
-            break;
-        }
-
-        default: {
-            return null;
-        }
-    }
-
-    const cost = record.ListUnitPrice * quantity;
+    const cost = record.ListUnitPrice * quantity
 
     if (!valid(cost)) {
         return null;
     }
 
     return cost;
+
 }
 
 export function calculateComponentCost(record, usage = {}, count = 1) {
@@ -165,4 +121,44 @@ export function calculateComponentCost(record, usage = {}, count = 1) {
   }
 
   return totalCost;
+}
+
+export function calculateTieredCost(tierRows, usage = {}, count = 1) {
+  if (tierRows.length === 0) {
+    return null;
+  }
+
+  if (!Number.isInteger(count) || count < 1) {
+    return null;
+  }
+
+  for (const tier of tierRows) {
+    if (!valid(tier.ListUnitPrice) || tier.PricingCurrency !== 'USD') {
+      return null;
+    }
+  }
+
+  const quantity = billableQuantity(tierRows[0], usage);
+
+  if (quantity === null) {
+    return null;
+  }
+
+  const total = quantity * count;
+  let cost = 0;
+
+  for (const tier of tierRows) {
+    const start = tierStartOf(tier);
+    const end = tierEndOf(tier);
+    const upper = Math.min(total, end);
+    const billed = Math.max(0, upper - start);
+
+    cost += billed * tier.ListUnitPrice;
+  }
+
+  if (!Number.isFinite(cost)) {
+    return null;
+  }
+
+  return cost;
 }

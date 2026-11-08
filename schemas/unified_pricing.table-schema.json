@@ -284,7 +284,7 @@
       "name": "TierEnd",
       "type": "number",
       "title": "Tier end",
-      "description": "Custom column, End of the price tier, in PricingUnit terms. Empty when the tier is open-ended (AWS writes Inf)",
+      "description": "Custom column, End of the price tier, in PricingUnit terms. Empty when the tier is open-ended",
       "constraints": {
         "minimum": 0
       }

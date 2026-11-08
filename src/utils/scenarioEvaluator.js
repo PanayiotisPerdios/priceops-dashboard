@@ -1,11 +1,28 @@
-import { calculateComponentCost, MAX_HOURS_PER_MONTH} from './pricingCalculator.js';
 
-export const PROVIDERS = ['AWS', 'Azure', 'GCP'];
+import {
+  calculateComponentCost,
+  calculateTieredCost,
+  isFlatPrice,
+  tierStartOf
+} from './pricingCalculator.js';
 
-const finite = n =>
-  typeof n === 'number' &&
-  Number.isFinite(n) &&
-  n >= 0;
+import {
+  PROVIDERS,
+  validateProvider,
+  validateScenario,
+  validateComponent,
+  validateUsage
+} from './scenarioValidation.js';
+
+import { isMissing, usesOS } from './usageSpec.js';
+
+// Preserve existing imports from scenarioEvaluator.js.
+export { PROVIDERS } from './scenarioValidation.js';
+
+const finite = value =>
+  typeof value === 'number' &&
+  Number.isFinite(value) &&
+  value >= 0;
 
 const COMPONENT_FILTER_FIELDS = [
   'ServiceCategory',
@@ -22,7 +39,8 @@ const COMPONENT_FILTER_FIELDS = [
   'CommitmentType'
 ];
 
-function commonMatch(row, scenario, provider, component) {
+// Check provider and scenario-wide requirements.
+function matchesScenario(row, scenario, provider) {
   if (row.ServiceProviderName !== provider) {
     return false;
   }
@@ -31,36 +49,28 @@ function commonMatch(row, scenario, provider, component) {
     return false;
   }
 
-  if (scenario.regionGroup != null && row.RegionGroup !== scenario.regionGroup) {
+  if (
+    scenario.regionGroup != null &&
+    row.RegionGroup !== scenario.regionGroup
+  ) {
     return false;
   }
 
-  if (scenario.pricingCategory != null && row.PricingCategory !== scenario.pricingCategory) {
+  if (
+    scenario.pricingCategory != null &&
+    row.PricingCategory !== scenario.pricingCategory
+  ) {
     return false;
-  }
-
-  let requiredOS = null;
-
-  if (component.OperatingSystem != null) {
-      requiredOS = component.OperatingSystem;
-  } else if (component.requiresOS) {
-      requiredOS = scenario.operatingSystem;
-  }
-
-  if (requiredOS != null) {
-      if (row.OperatingSystem !== requiredOS) {
-          return false;
-      }
-  }
-
-  if (row.TierStart != null || row.TierEnd != null) {
-      return false;
   }
 
   return true;
 }
 
-function eligible(row, component) {
+// Check component-specific requirements.
+function matchesComponent(row, component, scenario) {
+  const isInstance = component.PriceComponent === 'Instance';
+  
+
   for (const field of COMPONENT_FILTER_FIELDS) {
     const requestedValue = component[field];
 
@@ -71,214 +81,301 @@ function eligible(row, component) {
     }
   }
 
-  if (component.minVCpu != null) {
-      if (!finite(component.minVCpu)) {
-        return false;
-      }
+  const noTenancyRequested = isMissing(component.Tenancy) || component.Tenancy === '';
 
-      if (!finite(row.VCpu)) {
-        return false;
-      }
-
-      if (row.VCpu < component.minVCpu) {
-        return false;
-      }
+  if (noTenancyRequested && row.Tenancy === 'Dedicated') {
+    return false;
   }
 
-  if (component.minMemoryGiB != null) {
-      if (!finite(component.minMemoryGiB)) {
-        return false;
-      }
+  // Resolve the required operating system.
+  let requiredOS = null;
 
-      if (!finite(row.MemoryGiB)) {
-        return false;
-      }
-
-      if (row.MemoryGiB < component.minMemoryGiB) {
-        return false;
-      }
+  if (component.OperatingSystem != null) {
+    requiredOS = component.OperatingSystem;
+  } else if (usesOS(component)  && component.requiresOS) {
+    requiredOS = scenario.operatingSystem;
   }
+
+  if (requiredOS != null && row.OperatingSystem !== requiredOS) {
+    return false;
+  }
+  
+
+  if (isInstance && component.minVCpu != null) {
+    if (!finite(component.minVCpu) || !finite(row.VCpu) || row.VCpu < component.minVCpu) {
+      return false;
+    }
+  }
+
+  if (isInstance && component.minMemoryGiB != null) {
+    if (!finite(component.minMemoryGiB) || !finite(row.MemoryGiB) || row.MemoryGiB < component.minMemoryGiB) {
+      return false;
+    }
+  }
+
   return true;
 }
 
+// Combine shared hours with component usage.
 function usageFor(component, scenario) {
-  const usage = { hoursPerMonth: scenario.hoursPerMonth };
+  const usage = {
+    hoursPerMonth: scenario.hoursPerMonth
+  };
 
   if (component.usage != null) {
     for (const key of Object.keys(component.usage)) {
       usage[key] = component.usage[key];
-        
     }
   }
 
   return usage;
 }
 
+// Create a failed evaluation result.
 function failed(provider, name, issues) {
-
-    return {
-        provider: provider,
-        scenarioName: name ?? null,
-        complete: false,
-        totalMonthlyCost: null,
-        components: [],
-        issues: issues
-    };
+  return {
+    provider,
+    scenarioName: name ?? null,
+    complete: false,
+    totalMonthlyCost: null,
+    components: [],
+    issues
+  };
 }
 
+// Sort candidates by price, then SKU ID.
 function compareByCost(a, b) {
-    if (a.cost < b.cost) {
-        return -1;
-    }
+  if (a.cost < b.cost) {
+    return -1;
+  }
 
-    if (a.cost > b.cost) {
-        return 1;
-    }
+  if (a.cost > b.cost) {
+    return 1;
+  }
 
-    const skuA = String(a.row.SkuId ?? '');
-    const skuB = String(b.row.SkuId ?? '');
+  const skuA = String(a.row.SkuId ?? '');
+  const skuB = String(b.row.SkuId ?? '');
 
-    return skuA.localeCompare(skuB);
+  return skuA.localeCompare(skuB);
 }
 
-function validateComponent(component, index, scenario) {
-  const issues = [];
-  const prefix = `Component ${index + 1}:`;
-
-  if (!component || typeof component !== 'object' || Array.isArray(component)) { 
-    issues.push(`${prefix} invalid component.`);
-    return issues;
-  }
-
-  if (!Number.isInteger(component.quantity) || component.quantity < 1) {
-    issues.push(`${prefix} quantity must be a positive integer.`);
-  }
-
-  if (!component.ServiceCategory || !component.PriceComponent) {
-    issues.push(`${prefix} ServiceCategory and PriceComponent are required.`);
-  }
-
-  if (component.minVCpu != null && !finite(component.minVCpu)) {
-    issues.push(`${prefix} invalid minimum vCPU.`);
-  }
-
-  if (component.minMemoryGiB != null && !finite(component.minMemoryGiB)) {
-    issues.push(`${prefix} invalid minimum RAM.`);
-  }
-
-  if (component.usage != null && (typeof component.usage !== 'object' || Array.isArray(component.usage))) {
-    issues.push(`${prefix} usage must be an object.`);
-  }
-
-  if (component.requiresOS) {
-    const hasComponentOS = component.OperatingSystem != null && component.OperatingSystem !== '';
-    const hasScenarioOS = scenario.operatingSystem != null && scenario.operatingSystem !== '';
-
-    if (!hasComponentOS && !hasScenarioOS) {
-      issues.push(`${prefix} operating system is required.`);
-    }
-  }
-  
-  return issues;
+function tierKey(row) {
+  return [
+    row.ServiceProviderName, row.SkuId, row.RegionId, row.PricingCategory,
+    row.PricingUnit, row.PriceComponent, row.CommitmentTerm, row.CommitmentType,
+    row.Tenancy, row.OperatingSystem, row.StorageClass, row.ServiceTier,
+    row.DatabaseEngine, row.DeploymentOption
+  ].join('|');
 }
 
-export function evaluateScenario(records, scenario, provider) {
-  const issues = [];
-  const results = [];
+// Find the cheapest eligible record for one component.
+function findCheapestCandidate(records, scenario, provider, component) {
+  const usage = usageFor(component, scenario);
+  const candidates = [];
+  const tierGroups = new Map();
 
-  if (!Array.isArray(records)) {
-    issues.push('Pricing records must be an array.');
-  }
-
-  if (!PROVIDERS.includes(provider)) {
-    issues.push(`Unsupported provider: ${provider}.`);
-  }
-
-  if (!scenario || typeof scenario !== 'object' || Array.isArray(scenario)) {
-    issues.push('Invalid scenario.');
-    return failed(provider, null, issues);
-  }
-
-  if (!Number.isInteger(scenario.hoursPerMonth) || scenario.hoursPerMonth < 0 || scenario.hoursPerMonth > MAX_HOURS_PER_MONTH) {
-    issues.push(`Hours per month must be between 0 and ${MAX_HOURS_PER_MONTH}.`);
-  }
-
-  if (scenario.policy !== 'costFirst') {
-    issues.push(`Unsupported policy: ${scenario.policy}.`);
-  }
-
-  if (!Array.isArray(scenario.components) || scenario.components.length === 0) {
-    issues.push('Scenario must contain at least one component.');
-  }
-
-  if (issues.length > 0) {
-    return failed(provider, scenario.name, issues);
-  }
-
-  for (let index = 0; index < scenario.components.length; index++) {
-
-    const component = scenario.components[index];
-    const validationIssues = validateComponent(component, index, scenario);
-
-    if (validationIssues.length > 0) {
-
-      for (const issue of validationIssues) {
-        issues.push(issue);
-      }
-      
+  for (const row of records) {
+    if (!matchesScenario(row, scenario, provider)) {
       continue;
     }
 
-    const usage = usageFor(component, scenario);
-    const candidates = [];
+    if (!matchesComponent(row, component, scenario)) {
+      continue;
+    }
 
-    for (const row of records) {
-
-      if (!commonMatch(row, scenario, provider, component)) {
-        continue;
-      }
-
-      if (!eligible(row, component)) {
+    if (isFlatPrice(row)) {
+      // Free or placeholder rows must not win "cheapest".
+      if (row.ListUnitPrice <= 0) {
         continue;
       }
 
       const cost = calculateComponentCost(row, usage, component.quantity);
 
-      if (!finite(cost)) {
-        continue;
+      if (finite(cost)) {
+        candidates.push({ row, cost });
+      }
+    } else {
+      const key = tierKey(row);
+
+      if (!tierGroups.has(key)) {
+        tierGroups.set(key, []);
       }
 
-      candidates.push({row: row, cost: cost});
+      tierGroups.get(key).push(row);
     }
+  }
 
-    candidates.sort(compareByCost);
+  for (const rows of tierGroups.values()) {
+    rows.sort((a, b) => tierStartOf(a) - tierStartOf(b));
 
-    if (candidates.length === 0) {
-
-      issues.push(`Component ${index + 1}: ` + `no eligible, priceable record for ${provider}.`);
+    // Incomplete tier ladder.
+    if (tierStartOf(rows[0]) !== 0) {
       continue;
     }
 
-    const chosen = candidates[0];
-    const row = chosen.row;
+    let allFree = true;
+    for (const row of rows) {
+      if (row.ListUnitPrice > 0) {
+        allFree = false;
+      }
+    }
+    if (allFree) {
+      continue;
+    }
 
-    results.push({
-      componentIndex: index,
-      ServiceCategory: row.ServiceCategory,
-      ServiceSubcategory: row.ServiceSubcategory,
-      PriceComponent: row.PriceComponent,
-      PricingUnit: row.PricingUnit,
-      quantity: component.quantity,
-      skuId: row.SkuId,
-      skuName: row.SkuName || row.SkuId,
-      region: row.RegionId,
-      monthlyCost: chosen.cost,
-      vcpu: row.VCpu ?? null,
-      memoryGiB: row.MemoryGiB ?? null
-    });
+    const cost = calculateTieredCost(rows, usage, component.quantity);
+
+    if (finite(cost)) {
+      candidates.push({ row: rows[0], cost });
+    }
   }
 
+  candidates.sort(compareByCost);
+
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  return candidates[0];
+}
+
+function diagnose(records, scenario, provider, component) {
+  let providerRows = 0;
+  let afterScenario = 0;
+  let afterComponent = 0;
+
+  for (const row of records) {
+    if (row.ServiceProviderName !== provider) {
+      continue;
+    }
+    providerRows++;
+
+    if (!matchesScenario(row, scenario, provider)) {
+      continue;
+    }
+    afterScenario++;
+
+    if (!matchesComponent(row, component, scenario)) {
+      continue;
+    }
+    afterComponent++;
+  }
+
+  return { providerRows, afterScenario, afterComponent };
+}
+
+// Convert the chosen pricing record into a result.
+function createComponentResult(chosen, component, index) {
+  const row = chosen.row;
+  let vcpu = row.VCpu;
+  let memoryGiB = row.MemoryGiB;
+
+  if (isMissing(vcpu)) {
+    vcpu = null;
+  }
+
+  if (isMissing(memoryGiB)) {
+    memoryGiB = null;
+  }
+
+  return {
+    componentIndex: index,
+    ServiceCategory: row.ServiceCategory,
+    ServiceSubcategory: row.ServiceSubcategory,
+    PriceComponent: row.PriceComponent,
+    PricingUnit: row.PricingUnit,
+    quantity: component.quantity,
+    skuId: row.SkuId,
+    skuName: row.SkuName || row.SkuId,
+    region: row.RegionId,
+    monthlyCost: chosen.cost,
+    unitPrice: row.ListUnitPrice,
+    serviceName: row.ServiceName,
+    operatingSystem: row.OperatingSystem,
+    pricingCategory: row.PricingCategory,
+    vcpu,
+    memoryGiB
+  };
+}
+
+export function pickCheapest(results) {
+  let best = null;
+
+  for (const result of results) {
+    if (!result.complete || !Number.isFinite(result.totalMonthlyCost)) {
+      continue;
+    }
+
+    if (best === null || result.totalMonthlyCost < best.totalMonthlyCost) {
+      best = result;
+    }
+  }
+
+  return best;
+}
+
+// Evaluate one scenario against one provider.
+export function evaluateScenario(records, scenario, provider) {
+  const issues = [];
+  const results = [];
+
+  // 1. Validate top-level inputs.
+  if (!Array.isArray(records)) {
+    issues.push('Pricing records must be an array.');
+  }
+
+  issues.push(...validateProvider(provider));
+  issues.push(...validateScenario(scenario));
+
+  if (issues.length > 0) {
+    return failed(provider, scenario?.name, issues);
+  }
+
+  // 2. Evaluate each workload component.
+  for (let index = 0; index < scenario.components.length; index++) {
+    const component = scenario.components[index];
+
+    // Validate component requirements.
+    const componentIssues = validateComponent(component, index, scenario);
+
+    // Validate component usage.
+    const usageIssues = validateUsage(component, index);
+
+    const validationIssues = [
+      ...componentIssues,
+      ...usageIssues
+    ];
+
+    if (validationIssues.length > 0) {
+      issues.push(...validationIssues);
+      continue;
+    }
+
+    // 3. Find the cheapest eligible pricing record.
+    const chosen = findCheapestCandidate(records, scenario, provider, component);
+
+    if (chosen === null) {
+      const d = diagnose(records, scenario, provider, component);
+
+      let hint = '';
+      if (d.afterComponent > 0) {
+        hint = '; check usage quantities';
+      }
+
+      issues.push(`Component ${index + 1}: no priceable record for ${provider} ` +
+        `(${d.providerRows} rows, ${d.afterScenario} match region/pricing category, ` +
+        `${d.afterComponent} match component filters${hint}).`
+      );
+      continue;
+    }
+
+    // 4. Store the selected component.
+    results.push(createComponentResult(chosen, component, index));
+  }
+
+  // 5. Calculate the total only if every component succeeded.
   const complete = issues.length === 0 && results.length === scenario.components.length;
+
   let totalMonthlyCost = null;
 
   if (complete) {
@@ -295,14 +392,15 @@ export function evaluateScenario(records, scenario, provider) {
   };
 }
 
+// Evaluate the same scenario against every provider.
 export function evaluateAllProviders(records, scenario) {
   const results = [];
 
   for (const provider of PROVIDERS) {
-    const result = evaluateScenario(records, scenario, provider);
-    results.push(result);
+    results.push(
+      evaluateScenario(records, scenario, provider)
+    );
   }
 
   return results;
 }
-
