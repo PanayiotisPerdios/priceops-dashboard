@@ -1,6 +1,5 @@
 import { uniqSorted } from '@/utils/calculationServices';
-import { CATEGORY_TO_DOMAIN, PROVIDER_LABELS, BASE_URL, DEFAULT_EFFECTIVE_DATE, 
-GENERIC_SKU, FOCUS_SUBCATEGORIES  } from '@/data/constants'
+import { BASE_URL, FOCUS_SUBCATEGORIES  } from '@/data/constants'
 import Papa from 'papaparse';
 import Ajv2020 from 'ajv/dist/2020.js';
 

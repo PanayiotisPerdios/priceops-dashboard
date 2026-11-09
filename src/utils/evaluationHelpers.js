@@ -1,4 +1,5 @@
-import { calculateMonthlyCost } from './pricingCalculator.js';
+import { calculateMonthlyCost, isFlatPrice } from './pricingCalculator.js';
+import { isMissing, usesOS } from './usageSpec.js';
 
 const valid = value => typeof value === 'number' && Number.isFinite(value) && value >= 0;
 
@@ -21,14 +22,21 @@ export const EVALUATION_SCOPES = {
 
 export function prepareEvaluationRecords(records, filters) {
   const scope = EVALUATION_SCOPES[filters.category];
-  const usage = { hoursPerMonth: filters.hoursPerMonth };
-  const output = [];
 
   if (!scope || !Array.isArray(records)) {
     return [];
   }
 
-  
+  const usage = { hoursPerMonth: filters.hoursPerMonth };
+
+  if (filters.category === 'Storage') {
+    usage.storageGBMonths = filters.storageGBMonths;
+  }
+
+  const categoryUsesOS = usesOS({ ServiceCategory: filters.category });
+
+  const output = [];
+
   for (const row of records) {
     if (row.ServiceCategory !== filters.category) {
         continue;
@@ -42,8 +50,16 @@ export function prepareEvaluationRecords(records, filters) {
         continue;
     }
 
-    if (row.TierStart != null || row.TierEnd != null){
-        continue;
+    if (!isFlatPrice(row)) {
+      continue;
+    }
+
+    if (row.ListUnitPrice <= 0) {
+      continue;
+    }
+
+    if (row.Tenancy === 'Dedicated') {
+      continue;
     }
 
     if (filters.subcategory && row.ServiceSubcategory !== filters.subcategory){
@@ -60,6 +76,14 @@ export function prepareEvaluationRecords(records, filters) {
 
     if (filters.dbEngine && row.DatabaseEngine !== filters.dbEngine){
         continue;
+    }
+
+    if (filters.storageClass && row.StorageClass !== filters.storageClass) {
+      continue;
+    }
+
+    if (filters.deploymentOption && row.DeploymentOption !== filters.deploymentOption) {
+      continue;
     }
 
     if (filters.requireSpecs && filters.category !== 'Storage' && (!valid(row.VCpu) || !valid(row.MemoryGiB))){
@@ -84,13 +108,37 @@ export function prepareEvaluationRecords(records, filters) {
         continue;
     } 
 
+    let skuPriceId = row.SkuPriceId;
+
+    if (isMissing(skuPriceId)) {
+      skuPriceId = '';
+    }
+
+    let regionId = row.RegionId;
+
+    if (isMissing(regionId)) {
+      regionId = '';
+    }
+
+    let costPerVCpu = null;
+
+    if (valid(row.VCpu) && row.VCpu > 0) {
+      costPerVCpu = monthlyCost / row.VCpu;
+    }
+
+    let costPerMemoryGiB = null;
+    
+    if (valid(row.MemoryGiB) && row.MemoryGiB > 0) {
+      costPerMemoryGiB = monthlyCost / row.MemoryGiB;
+    }
+
     output.push({
       ...row,
-      id: `${row.ServiceProviderName}|${row.SkuId}|${row.SkuPriceId ?? ''}|${row.RegionId ?? ''}|${output.length}`,
+      id: `${row.ServiceProviderName}|${row.SkuId}|${skuPriceId}|${regionId}|${output.length}`,
       monthlyCost,
       unitPrice: row.ListUnitPrice,
-      costPerVCpu: valid(row.VCpu) && row.VCpu > 0 ? monthlyCost / row.VCpu : null,
-      costPerMemoryGiB: valid(row.MemoryGiB) && row.MemoryGiB > 0 ? monthlyCost / row.MemoryGiB : null
+      costPerVCpu,
+      costPerMemoryGiB
     });
   }
   return output;

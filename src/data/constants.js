@@ -139,27 +139,6 @@ export const FOCUS_SUBCATEGORIES = {
     ]
 };
 
-export const scenarioA = {
-    name: 'Production Web App',
-
-    regionGroup: 'Europe',
-    operatingSystem: 'Linux',
-    hoursPerMonth: 730,
-    pricingCategory: 'Standard',
-    policy: 'balanced',
-
-    components: [
-        {
-            ServiceCategory: 'Compute',
-            ServiceSubcategory: 'Virtual Machines',
-            PriceComponent: 'Instance',
-            PricingUnit: 'Hour',
-            quantity: 2,
-            minVcpu: 4,
-            minMemoryGiB: 16
-        }
-    ]
-};
 
 export const COMPARE_FIELDS = [
   { key: 'ListUnitPrice', name: 'List unit price', numeric: true, lowerBetter: true, price: true },
@@ -276,73 +255,9 @@ export const presetLabels = {
   valueFirst: 'Best Value',
 };
 
-export const SUBCATEGORY_LABELS = {
-  instance: 'Instances',
-  gpu: 'GPU / accelerators',
-  storage: 'Storage',
-  license: 'Licenses',
-  load_balancer: 'Load balancers',
-  public_ip: 'Public IPs',
-  cluster: 'Cluster fees',
-  management_fee: 'Management fees',
-  extended_support: 'Extended support',
-  nat_gateway: 'NAT gateways',
-  vpn: 'VPN',
-  peering: 'Peering',
-  transit_gateway: 'Transit gateways',
-  serverless: 'Serverless',
-  backup: 'Backup',
-  data_transfer: 'Data transfer',
-  data_processing: 'Data processing',
-  requests: 'Requests / operations',
-  iops: 'IOPS',
-  throughput: 'Throughput',
-  other: 'Other',
-};
-
-export const REGION_GROUP_LABELS = {
-  europe: 'Europe',
-  north_america: 'North America',
-  south_america: 'South America',
-  asia_pacific: 'Asia Pacific',
-  middle_east: 'Middle East',
-  africa: 'Africa',
-  global: 'Global',
-  other: 'Other',
-};
-
-export const PRICING_MODEL_LABELS = {
-  on_demand: 'On-demand',
-  spot: 'Spot',
-  low_priority: 'Low priority',
-  commitment: 'Commitment',
-  other_term: 'Other term',
-};
-
-export const DEFAULT_EFFECTIVE_DATE = '2026-10-02T00:00:00Z';
-
-export const PROVIDER_LABELS = { 
-  aws: 'AWS', 
-  azure: 'Azure', 
-  gcp: 'GCP' 
-};
-
-export const CATEGORY_TO_DOMAIN = {
-  compute: 'IaaS',
-  containers: 'CaaS',
-  kubernetes: 'CaaS',
-  database: 'Database',
-  storage: 'PaaS',
-  networking: 'PaaS',
-  backup: 'PaaS',
-};
-
-export const GENERIC_SKU = /^(vcore|standard|basic|cpu|ram|kubernetes|google|ssd|global|dedicated|hybrid|automatic|backup)$/i;
-
 export const BASE_URL = import.meta.env?.BASE_URL ?? '/';
 
 
-export const DEFAULT_SUBCATEGORY = 'instance';
 export const SKU_OPTION_LIMIT = 400;   // max entries in a SKU <select>
 export const TABLE_PAGE_SIZE = 50;     // DataExploration rows per page
 export const CHART_LIMIT = 20;         // records drawn in MetricChart
